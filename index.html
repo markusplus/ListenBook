@@ -29,20 +29,18 @@
             </div>
         </div>
         <div id="configuracion_section" style="display: none;">
-            <h1>Configura tu libro</h1>
             <div id="configuracion">
-                <div class="configuracion_item">
-                    <h5>Velocidad de lectura</h5>
-                    <input type="range" min="0.5" max="2" step="0.1" value="1" id="velocidad">
-                    <p id="velocidad_valor">1</p>
+                <div class="display_item_portada">
+                    <div id="portada_display">
+                    </div>
                 </div>
-                <div class="configuracion_item">
-                    <h5>Color de fondo</h5>
-                    <input type="color" id="color_fondo">
+                <div class="display_item">
+                    <h3>Título</h3>
+                    <p id="titulo_display"></p>
                 </div>
-                <div class="configuracion_item">
-                    <h5>Color de texto</h5>
-                    <input type="color" id="color_texto">
+                <div class="display_item">
+                    <h3>Autor</h3>
+                    <p id="autor_display"></p>
                 </div>
             </div>
         </div>
@@ -53,7 +51,7 @@
             </div>
         </div>
     </header>
-    <script src="scripts/script.js"> 
-    </script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="scripts/script.js"></script>
 </body>
 </html>
