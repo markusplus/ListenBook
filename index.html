@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- CSS -->
+    <link rel="stylesheet" href="css/style.css">
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="resources/logo1_crop.png">
+    <title>ListenBook</title>
+</head>
+<body>
+    <header>
+        <a href="index.html" id="logo_container">
+            <img src="resources/logo1_crop.png" alt="ListenBook" id="logo">
+        </a>
+        <div id='header_container'>
+            <div class="titulo_drag">
+                <div class="titulo_subtitulo">
+                    <h1>ListenBook</h1>
+                    <p>Escucha tus libros favoritos</p>
+                </div>
+                <section id="upload_section">
+                    <h2>Sube tu archivo</h2>
+                    <form action="upload.php" method="post" enctype="multipart/form-data" class="form_subida">
+                        <input id="file-upload" type="file" name="file">
+                    </form>
+                </section>
+            </div>
+        </div>
+        <div id="configuracion_section" style="display: none;">
+            <h1>Configura tu libro</h1>
+            <div id="configuracion">
+                <div class="configuracion_item">
+                    <h5>Velocidad de lectura</h5>
+                    <input type="range" min="0.5" max="2" step="0.1" value="1" id="velocidad">
+                    <p id="velocidad_valor">1</p>
+                </div>
+                <div class="configuracion_item">
+                    <h5>Color de fondo</h5>
+                    <input type="color" id="color_fondo">
+                </div>
+                <div class="configuracion_item">
+                    <h5>Color de texto</h5>
+                    <input type="color" id="color_texto">
+                </div>
+            </div>
+        </div>
+        <div class="login_registro">
+            <div style="display: none;">
+                <a href="login.php" class="botonGeneral">Iniciar sesión</a>
+                <a href="register.php" class="botonGeneral">Registrarse</a>
+            </div>
+        </div>
+    </header>
+    <script src="scripts/script.js"> 
+    </script>
+</body>
+</html>

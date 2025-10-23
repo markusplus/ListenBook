@@ -1,0 +1,129 @@
+/**
+ * General.
+ */
+html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Roboto', sans-serif;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-image: url('../resources/fondo1_edited.png');
+    background-repeat: repeat;
+    background-size: 350px 350px;
+}
+
+/**
+ * Cabecera.
+ */
+#logo {
+    width: 70%;
+    height: 70%;
+}
+
+#logo_container {
+    width: fit-content;
+    height: fit-content;
+}
+
+header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+header h1 {
+    margin: 0;
+    padding: 0;
+}
+
+#header_container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(87, 61, 31, 0.8);
+    border-radius: 25px;
+    padding: 10px;
+}
+
+.titulo_subtitulo {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin-top: 15px;
+}
+
+.botonGeneral {
+    background-color: #ab7243;
+    border: none;
+    border-radius: 15px;
+    color: white;
+    padding: 15px 32px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 16px;
+    margin: 4px 2px;
+    cursor: pointer;
+}
+
+.botonGeneral:hover {
+    background-color: #72461f;
+    color: white;
+}
+
+.login_registro {
+    position: absolute;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin-right: 20px;
+    width: 9%;
+}
+
+/**
+ * Cuerpo.
+ */
+
+#upload_section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 25px 25px 25px 25px;
+}
+
+.form_subida {
+    border: 5px dashed #ffffff;
+    border-radius: 10px;
+    padding: 20px;
+}
+
+#configuracion {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin-top: 50px;
+}
+
+#configuracion_section {
+    display: none;
+    background-color: rgba(87, 61, 31, 0.8);
+    border-radius: 25px;
+    padding: 25px 25px 25px 25px;
+}
+
+/**
+ * Footer.
+ */
+
+/**
+ * Animaciones.
+ */
