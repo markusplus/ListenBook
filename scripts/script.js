@@ -484,7 +484,7 @@ async function extraerCapitulos(ebook) {
 
         ];
 
-        const normalize = (s) => (s || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
+            const normalize = (s) => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 
         const isIgnored = (chap) => {
             const title = normalize(chap.titulo || chap.title || '');
