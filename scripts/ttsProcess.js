@@ -11,15 +11,57 @@ export async function ejecutarTTS(ebook, chapters, options) {
     const timeout = options && typeof options.timeout === 'number' ? options.timeout : (1000 * 60 * 5);
     const onProgress = options && typeof options.onProgress === 'function' ? options.onProgress : () => {};
 
-    // Build a sensible payload; you can extend this to include chapter text
+    // Build a sensible payload; include chapter text as the prompt when available
+    function _extractChapterText(ch) {
+        try {
+            if (!ch) return '';
+            if (typeof ch === 'string') return ch;
+            // common possible fields (include Spanish 'contenido')
+            const candidates = ['contenido', 'texto', 'text', 'content', 'body', 'html', 'plain'];
+            for (const k of candidates) {
+                if (ch[k]) {
+                    let v = ch[k];
+                    if (typeof v !== 'string') v = String(v);
+                    // if field looks like HTML, strip tags
+                    if (/</.test(v) && typeof document !== 'undefined' && typeof document.createElement === 'function') {
+                        try {
+                            const tmp = document.createElement('div');
+                            tmp.innerHTML = v;
+                            return tmp.textContent || tmp.innerText || '';
+                        } catch (e) {}
+                    }
+                    // fallback: strip simple tags
+                    return v.replace(/<[^>]*>/g, '');
+                }
+            }
+            // maybe chapter has a 'title' + 'href' — return title as fallback
+            if (ch.title || ch.titulo) return ch.title || ch.titulo;
+            return '';
+        } catch (e) { return ''; }
+    }
+
+    const chapterPrompt = (function buildPromptFromChapters(chaptersArg) {
+        try {
+            if (!chaptersArg) return '';
+            if (typeof chaptersArg === 'string') return chaptersArg;
+            if (!Array.isArray(chaptersArg)) return _extractChapterText(chaptersArg) || '';
+            const parts = [];
+            for (const c of chaptersArg) {
+                const t = _extractChapterText(c);
+                if (t && t.trim()) parts.push(t.trim());
+            }
+            return parts.join('\n\n---\n\n');
+        } catch (e) { return ''; }
+    })(chapters);
+
     const payload = {
-        prompt: "Probando la generación de audio con IA. Ta mare es puta",
+        prompt: chapterPrompt && chapterPrompt.length > 0 ? chapterPrompt : "Probando la generación de audio con IA.",
         language: "es",
-        // audio_file_pth may be either:
+    // audio_file_pth may be either:
         // - a data: URL string (browser-side uploaded file)
         // - an object { path, url, orig_name, size, mime_type, meta } (already in Gradio FileData shape)
         // - left empty and the proxy will use a fallback
-        audio_file_pth: { path: "", url: "", orig_name: "", size: 0, mime_type: "audio/wav", meta: { _type: 'gradio.FileData' } },
+    audio_file_pth: { path: "", url: "", orig_name: "", size: 0, mime_type: "audio/wav", meta: { _type: 'gradio.FileData' } },
         agree: true
     };
 

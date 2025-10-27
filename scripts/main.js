@@ -30,13 +30,139 @@ window.addEventListener('error', (ev) => {
     try { if (typeof Swal !== 'undefined') Swal.fire({ icon: 'error', title: 'Error de script', text: String(ev.message || ev.error || ev) }); } catch (e) {}
 });
 
-// Prevent any accidental form submits that would reload the page in this single-page app
+// Prevent accidental form submits, but allow the upload form (class 'form_subida') to submit normally
 document.addEventListener('submit', (ev) => {
     try {
+        const tgt = ev && ev.target;
+        if (tgt && typeof tgt.matches === 'function' && tgt.matches('.form_subida')) {
+            // allow the EPUB upload form to submit to server-side upload.php
+            console.log('[global] allow submit for .form_subida');
+            return;
+        }
         ev.preventDefault();
         console.warn('[global] prevented form submit');
     } catch (e) { console.error('[global] prevent submit failed', e); }
 });
+
+// Persistent off-DOM reference-audio input (avoids creating/removing inputs inside modals)
+let refAudioInput = document.getElementById('ref-audio-input');
+if (!refAudioInput) {
+    refAudioInput = document.createElement('input');
+    refAudioInput.type = 'file';
+    refAudioInput.accept = 'audio/*';
+    refAudioInput.style.display = 'none';
+    refAudioInput.id = 'ref-audio-input';
+    // keep it attached to body so it stays outside any modal/form contexts
+    document.body.appendChild(refAudioInput);
+}
+
+// Helper that triggers the persistent input and resolves with a data URL or null
+function pickReferenceAudio() {
+    return new Promise((resolve) => {
+        const handler = () => {
+            try {
+                const file = refAudioInput.files && refAudioInput.files[0];
+                if (!file) {
+                    refAudioInput.value = '';
+                    return resolve(null);
+                }
+                const reader = new FileReader();
+                reader.onload = () => {
+                    refAudioInput.value = '';
+                    resolve(reader.result);
+                };
+                reader.onerror = () => {
+                    refAudioInput.value = '';
+                    resolve(null);
+                };
+                reader.readAsDataURL(file);
+            } catch (e) {
+                try { refAudioInput.value = ''; } catch (e2) {}
+                resolve(null);
+            }
+        };
+        // Use { once: true } to auto-remove listener after first use
+        refAudioInput.addEventListener('change', handler, { once: true });
+        // programmatic click to open file picker
+        refAudioInput.click();
+    });
+}
+
+// -------------------------
+// Debug capture / send
+// -------------------------
+const ENABLE_DEBUG_CAPTURE = true; // flip to false to disable
+const DEBUG_ENDPOINT = 'http://127.0.0.1:3002/debug_event';
+const debugPending = [];
+
+async function sendDebugEvent(evt) {
+    if (!ENABLE_DEBUG_CAPTURE) return;
+    const payload = Object.assign({ ts: new Date().toISOString() }, evt);
+    try {
+        // use keepalive to allow send during unload in modern browsers
+        await fetch(DEBUG_ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            keepalive: true
+        });
+    } catch (e) {
+        // queue for sendBeacon on unload
+        try { console.warn('[debug] send failed, queued', e && e.message ? e.message : e); } catch (e2) {}
+        debugPending.push(payload);
+    }
+}
+
+// Try to flush queued events via sendBeacon on unload
+window.addEventListener('beforeunload', () => {
+    try {
+        if (debugPending.length === 0) return;
+        const blob = new Blob([JSON.stringify({ batch: debugPending })], { type: 'application/json' });
+        if (navigator && typeof navigator.sendBeacon === 'function') {
+            navigator.sendBeacon(DEBUG_ENDPOINT, blob);
+        } else {
+            // best-effort fallback
+            fetch(DEBUG_ENDPOINT, { method: 'POST', body: JSON.stringify({ batch: debugPending }), headers: { 'Content-Type': 'application/json' }, keepalive: true }).catch(() => {});
+        }
+    } catch (e) { }
+});
+
+// Generic click capture (non-intrusive: don't call preventDefault)
+document.addEventListener('click', (e) => {
+    if (!ENABLE_DEBUG_CAPTURE) return;
+    try {
+        const t = e.target || {};
+        const info = {
+            type: 'click',
+            tag: (t.tagName || '').toLowerCase(),
+            id: t.id || null,
+            classes: t.className || null,
+            x: e.clientX,
+            y: e.clientY,
+            href: t.href || null,
+            text: (t.innerText && t.innerText.length > 200) ? t.innerText.slice(0, 200) : (t.innerText || null)
+        };
+        sendDebugEvent(info);
+    } catch (e) {}
+}, false);
+
+// Capture reference-audio input changes
+try {
+    if (refAudioInput) {
+        refAudioInput.addEventListener('change', () => {
+            try { sendDebugEvent({ type: 'ref_audio_change', files: refAudioInput.files ? refAudioInput.files.length : 0 }); } catch (e) {}
+        }, { passive: true });
+    }
+} catch (e) {}
+
+// Capture epub file input changes
+try {
+    if (fileInput) {
+        fileInput.addEventListener('change', () => {
+            try { sendDebugEvent({ type: 'epub_input_change', files: fileInput.files ? fileInput.files.length : 0 }); } catch (e) {}
+        }, { passive: true });
+    }
+} catch (e) {}
 
 // (removed click-capture debug hook)
 
@@ -63,13 +189,8 @@ if (fileInput) {
                 if (img) {
                     img.onmouseover = () => img.style.opacity = '0.5';
                     img.onmouseout = () => img.style.opacity = '1';
-                    // use addEventListener in capture phase and prevent default to avoid accidental form submits/navigation
-                    img.addEventListener('click', async (event) => {
-                        // stop other handlers as early as possible
-                        try { if (event && typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation(); } catch (e) {}
-                        if (event && typeof event.preventDefault === 'function') {
-                            try { event.preventDefault(); event.stopPropagation(); } catch (e) {}
-                        }
+                    // restore simple click handler on the cover image
+                    img.onclick = async () => {
                         console.log('[UI] cover image clicked — executing handler');
                         showProcessing();
                         const resultado = await extraerCapitulos(ebook);
@@ -104,26 +225,12 @@ if (fileInput) {
                                     allowOutsideClick: false
                                 });
                                 if (wantUpload.isConfirmed) {
-                                    // Use an off-DOM file input to avoid embedding inputs inside modal HTML
-                                    referenceDataUrl = await new Promise((resolve) => {
-                                        const input = document.createElement('input');
-                                        input.type = 'file';
-                                        input.accept = 'audio/*';
-                                        input.style.display = 'none';
-                                        document.body.appendChild(input);
-                                        const cleanup = () => { try { document.body.removeChild(input); } catch (e) {} };
-                                        input.addEventListener('change', () => {
-                                            const file = input.files && input.files[0];
-                                            if (!file) { cleanup(); return resolve(null); }
-                                            const reader = new FileReader();
-                                            Swal.fire({ title: 'Leyendo archivo', text: 'Por favor espera...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-                                            reader.onload = () => { Swal.close(); cleanup(); resolve(reader.result); };
-                                            reader.onerror = (err) => { Swal.close(); cleanup(); resolve(null); };
-                                            reader.readAsDataURL(file);
-                                        }, { once: true });
-                                        // open picker
-                                        input.click();
-                                    });
+                                    try {
+                                        if (typeof Swal !== 'undefined') Swal.fire({ title: 'Leyendo archivo', text: 'Por favor espera...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                                        referenceDataUrl = await pickReferenceAudio();
+                                    } finally {
+                                        try { if (typeof Swal !== 'undefined') Swal.close(); } catch (e) {}
+                                    }
                                 }
                             }
 
@@ -186,7 +293,7 @@ if (fileInput) {
                                 Swal.fire({ icon: 'error', title: 'Error', html: `<pre style="text-align:left; white-space:pre-wrap; word-break:break-word">${small}</pre>` });
                             }
                         }
-                    });
+                    };
                 }
                 archivoSubido();
             } catch (err) {
