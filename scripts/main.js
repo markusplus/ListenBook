@@ -309,19 +309,21 @@ if (fileInput) {
                                                 body: JSON.stringify({ deleteDirPath: path0, targetPath: path1, bookName: bookTitleNoSpaces, chapterName: chapterSafe, baseUrl: 'http://127.0.0.1:7860' })
                                             });
                                             if (finalResp && finalResp.ok) {
-                                                const fj = await finalResp.json().catch(() => null);
-                                                if (fj && fj.ok && fj.url) {
-                                                    addDownloadLink(fj.url, fj.filename);
+                                                    const fj = await finalResp.json().catch(() => null);
+                                                    const finalUrl = (fj && fj.ok && (fj.outputsUrl || fj.url)) ? (fj.outputsUrl || fj.url) : null;
+                                                    if (finalUrl) {
+                                                        addDownloadLink(finalUrl, fj && fj.filename ? fj.filename : f1.filename);
+                                                    } else {
+                                                        // Finalize didn't return an outputs URL — refresh outputs list (do not show Gradio temp files)
+                                                        try { await fetchAndShowOutputsDir(); } catch (e) { /* ignore */ }
+                                                    }
                                                 } else {
-                                                    addDownloadLink(f1.url, f1.filename);
+                                                    try { await fetchAndShowOutputsDir(); } catch (e) { /* ignore */ }
                                                 }
-                                            } else {
-                                                addDownloadLink(f1.url, f1.filename);
-                                            }
-                                        } catch (e) { console.error('finalize error', e); addDownloadLink(f1.url, f1.filename); }
+                                            } catch (e) { console.error('finalize error', e); try { await fetchAndShowOutputsDir(); } catch (e2) {} }
                                     } else if (files && files.length === 1) {
-                                        // only one file — just add it
-                                        addDownloadLink(files[0].url, files[0].filename);
+                                        // only one file — do not show ephemeral Gradio temp files; refresh outputs dir
+                                        try { await fetchAndShowOutputsDir(); } catch (e) { /* ignore */ }
                                     } else {
                                         console.warn('[UI] no files found in result');
                                         if (typeof Swal !== 'undefined') Swal.fire({ icon: 'error', title: 'Error', text: 'No se encontraron audios generados.' });
@@ -333,10 +335,10 @@ if (fileInput) {
                                 console.error('Error procesando resultado TTS para descargas', e);
                                 if (typeof Swal !== 'undefined') Swal.fire({ icon: 'error', title: 'Error', text: 'La generación finalizó pero no se pudieron procesar los archivos.' });
                             }
-                            // Also fetch any generated files that exist in the Gradio temp folder
+                            // Refresh downloads from outputs directory only
                             try {
-                                await fetchAndShowGeneratedOutputs();
-                            } catch (e) { console.warn('fetchAndShowGeneratedOutputs failed', e); }
+                                await fetchAndShowOutputsDir();
+                            } catch (e) { console.warn('fetchAndShowOutputsDir failed', e); }
                         } catch (err) {
                             // Log full error object (handles non-Error throws)
                             try {
@@ -413,5 +415,35 @@ async function fetchAndShowGeneratedOutputs() {
     } catch (e) { console.warn('fetchAndShowGeneratedOutputs error', e); }
 }
 
-// On page load, populate downloads list with any existing generated outputs
-try { window.addEventListener('load', () => { try { fetchAndShowGeneratedOutputs(); } catch (e) {} }); } catch (e) {}
+// Also show any files already moved into the outputs directory (served by proxy at /outputs)
+async function fetchAndShowOutputsDir() {
+    try {
+        const outputsDir = 'D:\\TTS\\outputs';
+        const proxy = 'http://127.0.0.1:3002/gradio_outputs?dir=' + encodeURIComponent(outputsDir);
+        const resp = await fetch(proxy);
+        if (!resp.ok) return; // no outputs or proxy not available
+        const j = await resp.json().catch(() => null);
+        if (!j || !Array.isArray(j.files) || !j.dir) return;
+        const baseProxy = 'http://127.0.0.1:3002/outputs';
+        j.files.forEach(f => {
+            try {
+                // compute relative path inside outputs dir
+                let full = f.path || f.file || f.filename || '';
+                if (!full) return;
+                let root = j.dir;
+                if (full.startsWith(root)) {
+                    let rel = full.slice(root.length);
+                    // trim leading separators
+                    rel = rel.replace(/^\\+|^\/+/, '');
+                    // split path segments and encode each
+                    const parts = rel.split(/\\|\//).map(p => encodeURIComponent(p));
+                    const url = baseProxy + '/' + parts.join('/');
+                    addDownloadLink(url, f.filename || parts[parts.length-1]);
+                }
+            } catch (e) { console.error('addDownloadLink failed for outputs dir', e); }
+        });
+    } catch (e) { /* silent */ }
+}
+
+// On page load, populate downloads list with files only from the outputs directory
+try { window.addEventListener('load', () => { try { clearDownloads(); fetchAndShowOutputsDir(); } catch (e) {} }); } catch (e) {}
