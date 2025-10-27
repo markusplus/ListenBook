@@ -42,3 +42,36 @@ export function clearCover() {
     const portadaContainer = document.getElementById('portada_display');
     if (portadaContainer) portadaContainer.innerHTML = '';
 }
+
+export function clearDownloads() {
+    const list = document.getElementById('downloads_list');
+    const empty = document.getElementById('downloads_empty');
+    if (list) list.innerHTML = '';
+    if (empty) empty.style.display = 'block';
+}
+
+export function addDownloadLink(url, filename) {
+    try {
+        const list = document.getElementById('downloads_list');
+        const empty = document.getElementById('downloads_empty');
+        if (!list) return;
+        if (empty) empty.style.display = 'none';
+        const row = document.createElement('div');
+        row.className = 'download-row';
+        row.style.margin = '8px 0';
+        const a = document.createElement('a');
+        a.href = url;
+        a.textContent = filename || url;
+        a.download = filename || '';
+        a.target = '_blank';
+        a.style.marginRight = '8px';
+        /* const audio = document.createElement('audio');
+        audio.controls = true;
+        audio.src = url;
+        audio.style.verticalAlign = 'middle';
+        audio.style.maxWidth = '60%'; */
+        row.appendChild(a);
+        //row.appendChild(audio);
+        list.appendChild(row);
+    } catch (e) { console.error('addDownloadLink error', e); }
+}

@@ -137,20 +137,61 @@ export async function ejecutarTTS(ebook, chapters, options) {
                     endpoint: '/predict',
                     payload: payload
                 };
+
+                // If payload.audio_file_pth is a data: URL, upload it first to the proxy
+                // to avoid sending a giant JSON to /gradio_call which can cause "Failed to fetch".
+                try {
+                    if (payload && typeof payload.audio_file_pth === 'string' && payload.audio_file_pth.startsWith('data:') && options && options.proxyGradioCallUrl) {
+                        try {
+                            console.log('[ejecutarTTS] uploading reference audio to proxy /upload_data_url to avoid large POST');
+                            const upResp = await fetch(new URL('/upload_data_url', options.proxyGradioCallUrl.replace(/\/gradio_call\/?$/, '/')).toString(), {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ dataUrl: payload.audio_file_pth, filename: 'reference.wav' })
+                            });
+                            if (upResp && upResp.ok) {
+                                const upj = await upResp.json().catch(() => null);
+                                if (upj && upj.ok) {
+                                    // set audio_file_pth to a FileData-like object pointing to uploaded path
+                                    payload.audio_file_pth = { path: upj.path, url: upj.url, orig_name: upj.filename, size: upj.size, mime_type: upj.mime_type, meta: { _type: 'gradio.FileData' } };
+                                    proxyBody.payload = payload;
+                                    console.log('[ejecutarTTS] reference uploaded to proxy, new audio_file_pth set');
+                                }
+                            } else {
+                                console.warn('[ejecutarTTS] proxy upload_data_url failed', upResp && upResp.status);
+                            }
+                        } catch (e) {
+                            console.warn('[ejecutarTTS] upload_data_url error', e);
+                        }
+                    }
+                } catch (e) { console.warn('pre-proxy upload helper failed', e); }
                 console.log('[ejecutarTTS] calling proxyGradioCallUrl', options.proxyGradioCallUrl);
                 console.log('[ejecutarTTS] proxyBody keys:', Object.keys(proxyBody), 'payload keys:', Object.keys(payload));
-                let resp;
+                let resp = null;
+                // Use AbortController so we can enforce a client-side timeout and
+                // get a clearer error if the browser drops the connection.
+                const controller = new AbortController();
+                // allow caller to override client-side timeout via options.clientTimeout (ms)
+                const clientTimeout = (options && typeof options.clientTimeout === 'number') ? options.clientTimeout : timeout;
+                const to = setTimeout(() => {
+                    try { controller.abort(); } catch (e) {}
+                }, clientTimeout);
+
                 try {
                     resp = await fetch(options.proxyGradioCallUrl, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(proxyBody),
+                        mode: 'cors',
+                        signal: controller.signal
                     });
                 } catch (netErr) {
                     console.error('[ejecutarTTS] network error calling proxy:', netErr);
+                    clearTimeout(to);
                     // throw a normalized Error so caller's catch sees a string message
                     throw new Error('Network error calling proxyGradioCallUrl: ' + (netErr && netErr.message ? netErr.message : String(netErr)));
                 }
+                clearTimeout(to);
 
                 const text = await resp.text().catch(e => { console.error('[ejecutarTTS] error reading proxy response text', e); return null; });
                 let parsed = null;

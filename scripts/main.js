@@ -1,4 +1,4 @@
-import { archivoSubido, setTitle, setAuthor, showCover } from './dom.js';
+import { archivoSubido, setTitle, setAuthor, showCover, addDownloadLink, clearDownloads } from './dom.js';
 import { showProcessing, closeProcessing, showChapterSelectionModal } from './ui.js';
 import { Ebook, extraerCapitulos } from './ebook.js';
 import { ejecutarTTS } from './ttsProcess.js';
@@ -237,6 +237,8 @@ if (fileInput) {
                                 console.log('[UI] invoking ejecutarTTS — selected chapters:', seleccionados.length, seleccionados.map(c => c.titulo || c.title || c.href));
                                 console.log('[UI] referenceDataUrl present?', !!referenceDataUrl);
                                 const _ttsStart = Date.now();
+                                // clear previous downloads for a fresh run
+                                try { clearDownloads(); } catch (e) {}
                             const result = await ejecutarTTS(ebook, seleccionados, {
                                 // point to Gradio base URL; ejecutarTTS will post to /predict
                                 serverUrl: 'http://127.0.0.1:7860',
@@ -264,20 +266,77 @@ if (fileInput) {
                             });
 
                                 const _ttsMs = Date.now() - _ttsStart;
-                                console.log('[UI] ejecutarTTS finished in', _ttsMs, 'ms — result:', result);
-                            // When done, show results
-                            if (result && result.status === 'done') {
-                                const files = result.files || [];
-                                if (typeof Swal !== 'undefined') {
-                                    const list = files.map(f => {
-                                        const url = (f.url && f.url.startsWith('http')) ? f.url : (`http://127.0.0.1:3001${f.url}`);
-                                        return `<div style="margin:8px 0;"><div>${f.filename || ''}</div><audio controls src="${url}"></audio></div>`;
-                                    }).join('');
-                                    Swal.fire({ title: 'Audios generados', html: `<div style="text-align:left">${list || 'No se generaron archivos'}</div>` });
+                                console.log('[UI] ejecutarTTS finished in', _ttsMs, 'ms — raw result:', result);
+                            // When done, try to extract file URLs from result and add to downloads
+                            try {
+                                // Defensive: if result is a JSON string, try to parse it
+                                let normalized = result;
+                                if (typeof normalized === 'string') {
+                                    try { normalized = JSON.parse(normalized); console.log('[UI] parsed result string into object'); } catch (e) { console.warn('[UI] result is string but not JSON'); }
                                 }
-                            } else {
-                                if (typeof Swal !== 'undefined') Swal.fire({ icon: 'error', title: 'Error', text: 'La generación falló o fue cancelada.' });
+                                const files = extractFilesFromResult(normalized || {});
+                                console.log('[UI] extracted files:', files);
+                                try {
+                                    if (files && files.length >= 2) {
+                                        // Delete files[0] on server and rename files[1] to book+chapter+creationDate.wav
+                                        const f0 = files[0];
+                                        const f1 = files[1];
+                                        // extract raw paths
+                                        function rawPathFromFileObj(f) {
+                                            if (!f) return null;
+                                            if (f.path) return f.path;
+                                            if (f.url) {
+                                                const m = String(f.url).match(/file=(.*)$/);
+                                                if (m && m[1]) return decodeURIComponent(m[1]);
+                                            }
+                                            return null;
+                                        }
+                                        const path0 = rawPathFromFileObj(f0);
+                                        const path1 = rawPathFromFileObj(f1);
+                                        // build desired base name
+                                        const bookTitleRaw = (ebook && (ebook.titulo || ebook.title)) ? (ebook.titulo || ebook.title) : 'ebook';
+                                        const bookTitleNoSpaces = String(bookTitleRaw).replace(/\s+/g, '');
+                                        // pick chapter name from selection: assume first selected chapter corresponds to files[1]
+                                        let chapterName = 'capitulo1';
+                                        try { if (Array.isArray(seleccionados) && seleccionados.length > 0) chapterName = seleccionados[0].titulo || seleccionados[0].title || chapterName; } catch(e){}
+                                        const chapterSafe = String(chapterName).replace(/\s+/g, '');
+                                        const desiredBase = `${bookTitleNoSpaces}${chapterSafe}`;
+
+                                        // Call proxy finalize endpoint: delete directory of file0, move file1 into outputs/<bookName>/<book_chapter_date>.wav
+                                        try {
+                                            const finalResp = await fetch('http://127.0.0.1:3002/gradio_finalize', {
+                                                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({ deleteDirPath: path0, targetPath: path1, bookName: bookTitleNoSpaces, chapterName: chapterSafe, baseUrl: 'http://127.0.0.1:7860' })
+                                            });
+                                            if (finalResp && finalResp.ok) {
+                                                const fj = await finalResp.json().catch(() => null);
+                                                if (fj && fj.ok && fj.url) {
+                                                    addDownloadLink(fj.url, fj.filename);
+                                                } else {
+                                                    addDownloadLink(f1.url, f1.filename);
+                                                }
+                                            } else {
+                                                addDownloadLink(f1.url, f1.filename);
+                                            }
+                                        } catch (e) { console.error('finalize error', e); addDownloadLink(f1.url, f1.filename); }
+                                    } else if (files && files.length === 1) {
+                                        // only one file — just add it
+                                        addDownloadLink(files[0].url, files[0].filename);
+                                    } else {
+                                        console.warn('[UI] no files found in result');
+                                        if (typeof Swal !== 'undefined') Swal.fire({ icon: 'error', title: 'Error', text: 'No se encontraron audios generados.' });
+                                    }
+                                } catch (e) {
+                                    console.error('Error processing files for delete/rename', e);
+                                }
+                            } catch (e) {
+                                console.error('Error procesando resultado TTS para descargas', e);
+                                if (typeof Swal !== 'undefined') Swal.fire({ icon: 'error', title: 'Error', text: 'La generación finalizó pero no se pudieron procesar los archivos.' });
                             }
+                            // Also fetch any generated files that exist in the Gradio temp folder
+                            try {
+                                await fetchAndShowGeneratedOutputs();
+                            } catch (e) { console.warn('fetchAndShowGeneratedOutputs failed', e); }
                         } catch (err) {
                             // Log full error object (handles non-Error throws)
                             try {
@@ -306,3 +365,53 @@ if (fileInput) {
         }
     });
 }
+
+// Helper to find file-like objects (with url/path) in various result shapes
+function extractFilesFromResult(obj) {
+    const results = [];
+    const seen = new Set();
+    function normalizeUrl(u) {
+        if (!u) return u;
+        if (typeof u !== 'string') u = String(u);
+        if (u.startsWith('http')) return u;
+        if (u.startsWith('/')) return 'http://127.0.0.1:7860' + u;
+        if (u.startsWith('file=')) return 'http://127.0.0.1:7860/' + u;
+        // windows path like C:\... -> expose via gradio file= prefix
+        if (/^[A-Za-z]:\\/.test(u)) return 'http://127.0.0.1:7860/file=' + encodeURIComponent(u);
+        return u;
+    }
+    function walk(x) {
+        if (!x) return;
+        if (typeof x === 'string') return;
+        if (Array.isArray(x)) return x.forEach(walk);
+        if (typeof x === 'object') {
+            const hasUrl = (typeof x.url === 'string' && x.url) || (typeof x.path === 'string' && x.path);
+            if (hasUrl) {
+                const raw = x.url || x.path;
+                const url = normalizeUrl(raw);
+                const filename = x.orig_name || x.origName || x.filename || (typeof raw === 'string' ? raw.split(/[\\/]/).pop() : 'file');
+                if (!seen.has(url)) { seen.add(url); results.push({ url, filename }); }
+            }
+            Object.keys(x).forEach(k => walk(x[k]));
+        }
+    }
+    walk(obj);
+    return results;
+}
+
+// Fetch list of generated outputs from the local proxy and add them to downloads
+async function fetchAndShowGeneratedOutputs() {
+    try {
+        const proxy = 'http://127.0.0.1:3002/gradio_outputs';
+        const resp = await fetch(proxy);
+        if (!resp.ok) return console.warn('gradio_outputs request failed', resp.status);
+        const j = await resp.json().catch(() => null);
+        if (!j || !Array.isArray(j.files)) return;
+        j.files.forEach(f => {
+            try { addDownloadLink(f.url, f.filename); } catch (e) { console.error('addDownloadLink failed for gradio_outputs', e); }
+        });
+    } catch (e) { console.warn('fetchAndShowGeneratedOutputs error', e); }
+}
+
+// On page load, populate downloads list with any existing generated outputs
+try { window.addEventListener('load', () => { try { fetchAndShowGeneratedOutputs(); } catch (e) {} }); } catch (e) {}
