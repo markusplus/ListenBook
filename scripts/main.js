@@ -127,24 +127,7 @@ window.addEventListener('beforeunload', () => {
     } catch (e) { }
 });
 
-// Generic click capture (non-intrusive: don't call preventDefault)
-document.addEventListener('click', (e) => {
-    if (!ENABLE_DEBUG_CAPTURE) return;
-    try {
-        const t = e.target || {};
-        const info = {
-            type: 'click',
-            tag: (t.tagName || '').toLowerCase(),
-            id: t.id || null,
-            classes: t.className || null,
-            x: e.clientX,
-            y: e.clientY,
-            href: t.href || null,
-            text: (t.innerText && t.innerText.length > 200) ? t.innerText.slice(0, 200) : (t.innerText || null)
-        };
-        sendDebugEvent(info);
-    } catch (e) {}
-}, false);
+// Generic click capture removed to avoid sending debug events on every user click
 
 // Capture reference-audio input changes
 try {
@@ -248,6 +231,9 @@ if (fileInput) {
                                 referenceAudioUrl: 'http://127.0.0.1:3002/proxy?url=' + encodeURIComponent('https://github.com/gradio-app/gradio/raw/main/test/test_files/audio_sample.wav'),
                                 // prefer using local proxy for server-side Gradio invocation
                                 proxyGradioCallUrl: 'http://127.0.0.1:3002/gradio_call',
+                                // extend client-side fetch timeout to 10 minutes to avoid premature aborts
+                                // 0 = wait indefinitely (no client-side abort)
+                                clientTimeout: 0,
                                 pollInterval: 1500,
                                 timeout: 1000 * 60 * 5,
                                 onProgress: (status) => {

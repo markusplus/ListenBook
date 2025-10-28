@@ -2,10 +2,8 @@
 export function archivoSubido() {
     console.log('Archivo subido (DOM)');
     const header = document.getElementById('header_container');
-    const logo = document.getElementById('logo_container');
     const config = document.getElementById('configuracion_section');
     if (header) header.style.display = 'none';
-    if (logo) logo.style.display = 'none';
     if (config) config.style.display = 'block';
 }
 
@@ -74,4 +72,13 @@ export function addDownloadLink(url, filename) {
         //row.appendChild(audio);
         list.appendChild(row);
     } catch (e) { console.error('addDownloadLink error', e); }
+}
+
+const logoDescargas = document.getElementById('logo_descargas');
+const tituloDrag = document.getElementsByClassName('titulo_drag')[0];
+
+logoDescargas.onclick = () => {
+    const list = document.getElementById('downloads_section');
+    tituloDrag.style.display = 'none';
+    if (list) list.style.display = 'block';
 }

@@ -239,6 +239,7 @@ export async function extraerCapitulos(ebook) {
             /^\s*portada\b/i,
             /^\s*contraportada\b/i,
             /^\s*autor(es)?\b/i,
+            /^\s*fotos?\b/i,
         ];
     const normalize = (s) => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
         const isIgnored = (chap) => {

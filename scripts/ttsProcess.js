@@ -172,10 +172,15 @@ export async function ejecutarTTS(ebook, chapters, options) {
                 // get a clearer error if the browser drops the connection.
                 const controller = new AbortController();
                 // allow caller to override client-side timeout via options.clientTimeout (ms)
+                // If clientTimeout is 0 (explicit) we will not set a timer and will wait indefinitely.
                 const clientTimeout = (options && typeof options.clientTimeout === 'number') ? options.clientTimeout : timeout;
-                const to = setTimeout(() => {
-                    try { controller.abort(); } catch (e) {}
-                }, clientTimeout);
+                let abortedByTimeout = false;
+                let to = null;
+                if (clientTimeout && clientTimeout > 0) {
+                    to = setTimeout(() => {
+                        try { abortedByTimeout = true; controller.abort(); } catch (e) {}
+                    }, clientTimeout);
+                }
 
                 try {
                     resp = await fetch(options.proxyGradioCallUrl, {
@@ -187,7 +192,18 @@ export async function ejecutarTTS(ebook, chapters, options) {
                     });
                 } catch (netErr) {
                     console.error('[ejecutarTTS] network error calling proxy:', netErr);
-                    clearTimeout(to);
+                    if (to) clearTimeout(to);
+                    // Improve Abort diagnostics
+                    try {
+                        const isAbort = netErr && (netErr.name === 'AbortError' || (netErr.constructor && netErr.constructor.name === 'AbortError'));
+                        const sig = controller && controller.signal;
+                        const sigReason = sig && (sig.reason || (sig._reason ? sig._reason : null));
+                        if (isAbort) {
+                            const reasonStr = sigReason ? ` signalReason=${String(sigReason)}` : '';
+                            const timeoutStr = abortedByTimeout ? ' (client timeout)' : '';
+                            throw new Error('Network error calling proxyGradioCallUrl: AbortError' + timeoutStr + reasonStr);
+                        }
+                    } catch (e2) { /* fall through to generic */ }
                     // throw a normalized Error so caller's catch sees a string message
                     throw new Error('Network error calling proxyGradioCallUrl: ' + (netErr && netErr.message ? netErr.message : String(netErr)));
                 }
