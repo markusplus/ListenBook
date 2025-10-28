@@ -128,6 +128,17 @@ header h1 {
     height: 10%;
 }
 
+#back_to_main {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    width: 28px;
+    height: 28px;
+}
+#back_to_main svg { display: block; width: 20px; height: 20px; }
+#back_to_main:hover svg rect { fill: rgba(255,255,255,0.12); }
+
 .download-row a {
     text-decoration: underline;
     color: white;

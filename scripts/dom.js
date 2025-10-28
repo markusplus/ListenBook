@@ -82,3 +82,46 @@ logoDescargas.onclick = () => {
     tituloDrag.style.display = 'none';
     if (list) list.style.display = 'block';
 }
+
+// Progress widget: floating box at top-right showing percent and status
+let _progressWidget = null;
+let _progressInterval = null;
+export function createProgressWidget() {
+    removeProgressWidget();
+    const w = document.createElement('div');
+    w.id = 'tts-progress-widget';
+    w.style.position = 'fixed';
+    w.style.top = '12px';
+    w.style.right = '12px';
+    w.style.zIndex = '9999';
+    w.style.background = 'rgba(0,0,0,0.75)';
+    w.style.color = '#fff';
+    w.style.padding = '10px 12px';
+    w.style.borderRadius = '8px';
+    w.style.fontFamily = 'sans-serif';
+    w.style.fontSize = '13px';
+    w.style.boxShadow = '0 2px 8px rgba(0,0,0,0.3)';
+    w.innerHTML = `<div id="tts-progress-percent" style="font-weight:700; font-size:14px;">0%</div><div id="tts-progress-label" style="color:#ddd; margin-top:4px; font-size:12px;">Preparando...</div>`;
+    document.body.appendChild(w);
+    _progressWidget = w;
+}
+
+export function updateProgressWidget({ percent = 0, label = '' } = {}) {
+    if (!_progressWidget) return;
+    try {
+        const p = _progressWidget.querySelector('#tts-progress-percent');
+        const l = _progressWidget.querySelector('#tts-progress-label');
+        if (p) p.textContent = `${Math.max(0, Math.min(100, Math.floor(percent)))}%`;
+        if (l) l.textContent = label || '';
+    } catch (e) { }
+}
+
+export function removeProgressWidget() {
+    try {
+        if (_progressInterval) { clearInterval(_progressInterval); _progressInterval = null; }
+        if (_progressWidget && _progressWidget.parentNode) {
+            _progressWidget.parentNode.removeChild(_progressWidget);
+        }
+    } catch (e) {}
+    _progressWidget = null;
+}

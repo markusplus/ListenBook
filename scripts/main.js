@@ -1,5 +1,6 @@
 import { archivoSubido, setTitle, setAuthor, showCover, addDownloadLink, clearDownloads } from './dom.js';
 import { showProcessing, closeProcessing, showChapterSelectionModal } from './ui.js';
+import { createProgressWidget, updateProgressWidget, removeProgressWidget } from './dom.js';
 import { Ebook, extraerCapitulos } from './ebook.js';
 import { ejecutarTTS } from './ttsProcess.js';
 
@@ -220,6 +221,29 @@ if (fileInput) {
                                 console.log('[UI] invoking ejecutarTTS — selected chapters:', seleccionados.length, seleccionados.map(c => c.titulo || c.title || c.href));
                                 console.log('[UI] referenceDataUrl present?', !!referenceDataUrl);
                                 const _ttsStart = Date.now();
+                                // Setup persistent progress widget (top-right)
+                                try {
+                                    // Estimate seconds per 50 chars (tunable). 0.0-∞. Adjust later if you want.
+                                    const BASE_SEC_PER_50 = 0.92; // seconds per 50 chars (estimate)
+                                    // approximate prompt length from selected chapters
+                                    const approxPromptLength = (seleccionados || []).map(c => ((c.contenido || c.text || c.content) || (c.titulo || c.title) || '')).join('\n').length || 0;
+                                    const units = Math.max(1, Math.ceil(approxPromptLength / 50));
+                                    const estimatedSeconds = units * BASE_SEC_PER_50;
+                                    let elapsedSeconds = 0;
+                                    createProgressWidget();
+                                    updateProgressWidget({ percent: 0, label: `Estimado: ${estimatedSeconds}s — Iniciando...` });
+                                    // tick every 1s to update percent as elapsed/estimated
+                                    const progressStart = Date.now();
+                                    const progressInterval = setInterval(() => {
+                                        elapsedSeconds = Math.floor((Date.now() - progressStart) / 1000);
+                                        let pct = estimatedSeconds > 0 ? (elapsedSeconds / estimatedSeconds) * 100 : 0;
+                                        if (pct > 99) pct = 99; // keep below 100 until finished
+                                        updateProgressWidget({ percent: pct, label: `Estimado: ${estimatedSeconds}s · ${elapsedSeconds}s transcurridos` });
+                                    }, 1000);
+                                    // store interval so we can clear on completion
+                                    window.__tts_progress_interval = progressInterval;
+                                    window.__tts_progress_meta = { estimatedSeconds, progressStart };
+                                } catch (e) { console.warn('progress widget init failed', e); }
                                 // clear previous downloads for a fresh run
                                 try { clearDownloads(); } catch (e) {}
                             const result = await ejecutarTTS(ebook, seleccionados, {
@@ -252,6 +276,11 @@ if (fileInput) {
                             });
 
                                 const _ttsMs = Date.now() - _ttsStart;
+                                // clear progress widget
+                                try {
+                                    if (window.__tts_progress_interval) { clearInterval(window.__tts_progress_interval); window.__tts_progress_interval = null; }
+                                    removeProgressWidget();
+                                } catch (e) {}
                                 console.log('[UI] ejecutarTTS finished in', _ttsMs, 'ms — raw result:', result);
                             // When done, try to extract file URLs from result and add to downloads
                             try {
@@ -325,7 +354,8 @@ if (fileInput) {
                             try {
                                 await fetchAndShowOutputsDir();
                             } catch (e) { console.warn('fetchAndShowOutputsDir failed', e); }
-                        } catch (err) {
+                            } catch (err) {
+                                try { if (window.__tts_progress_interval) { clearInterval(window.__tts_progress_interval); window.__tts_progress_interval = null; } removeProgressWidget(); } catch(e){}
                             // Log full error object (handles non-Error throws)
                             try {
                                 console.error('Error ejecutando TTS (raw):', err);
