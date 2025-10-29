@@ -182,30 +182,61 @@ export async function ejecutarTTS(ebook, chapters, options) {
                     }, clientTimeout);
                 }
 
-                try {
-                    resp = await fetch(options.proxyGradioCallUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(proxyBody),
-                        mode: 'cors',
-                        signal: controller.signal
-                    });
-                } catch (netErr) {
-                    console.error('[ejecutarTTS] network error calling proxy:', netErr);
-                    if (to) clearTimeout(to);
-                    // Improve Abort diagnostics
+                // Attempt the fetch with a small retry/backoff loop to handle intermittent
+                // network errors (e.g. temporary socket resets or browser "Failed to fetch").
+                const maxAttempts = 3;
+                const baseBackoff = 400; // ms
+                let attempt = 0;
+                let lastNetErr = null;
+                for (attempt = 1; attempt <= maxAttempts; attempt++) {
+                    // create a fresh controller per attempt
+                    const attemptController = new AbortController();
+                    let attemptTo = null;
+                    let attemptAbortedByTimeout = false;
+                    if (clientTimeout && clientTimeout > 0) {
+                        attemptTo = setTimeout(() => {
+                            try { attemptAbortedByTimeout = true; attemptController.abort(); } catch (e) {}
+                        }, clientTimeout);
+                    }
                     try {
+                        resp = await fetch(options.proxyGradioCallUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(proxyBody),
+                            mode: 'cors',
+                            signal: attemptController.signal
+                        });
+                        // success: clear both the outer timer and the attempt timer and break
+                        if (to) clearTimeout(to);
+                        if (attemptTo) clearTimeout(attemptTo);
+                        abortedByTimeout = attemptAbortedByTimeout;
+                        break;
+                    } catch (netErr) {
+                        // record and decide whether to retry
+                        lastNetErr = netErr;
+                        console.warn(`[ejecutarTTS] proxy fetch attempt ${attempt} failed:`, netErr && netErr.message ? netErr.message : netErr);
+                        if (attemptTo) clearTimeout(attemptTo);
+                        // If this attempt was aborted due to client timeout, surface that immediately
                         const isAbort = netErr && (netErr.name === 'AbortError' || (netErr.constructor && netErr.constructor.name === 'AbortError'));
-                        const sig = controller && controller.signal;
-                        const sigReason = sig && (sig.reason || (sig._reason ? sig._reason : null));
-                        if (isAbort) {
+                        if (isAbort && attemptAbortedByTimeout) {
+                            // clear outer timeout and throw a timeout-specific error
+                            if (to) clearTimeout(to);
+                            const sig = attemptController && attemptController.signal;
+                            const sigReason = sig && (sig.reason || (sig._reason ? sig._reason : null));
                             const reasonStr = sigReason ? ` signalReason=${String(sigReason)}` : '';
-                            const timeoutStr = abortedByTimeout ? ' (client timeout)' : '';
-                            throw new Error('Network error calling proxyGradioCallUrl: AbortError' + timeoutStr + reasonStr);
+                            throw new Error('Network error calling proxyGradioCallUrl: AbortError (client timeout)' + reasonStr);
                         }
-                    } catch (e2) { /* fall through to generic */ }
-                    // throw a normalized Error so caller's catch sees a string message
-                    throw new Error('Network error calling proxyGradioCallUrl: ' + (netErr && netErr.message ? netErr.message : String(netErr)));
+                        // If not last attempt, back off and retry
+                        if (attempt < maxAttempts) {
+                            const backoff = baseBackoff * attempt;
+                            await new Promise(r => setTimeout(r, backoff));
+                            continue;
+                        }
+                        // last attempt failed: clear outer timeout and rethrow a normalized error
+                        if (to) clearTimeout(to);
+                        console.error('[ejecutarTTS] network error calling proxy (all attempts failed):', netErr);
+                        throw new Error('Network error calling proxyGradioCallUrl: ' + (netErr && netErr.message ? netErr.message : String(netErr)));
+                    }
                 }
                 clearTimeout(to);
 

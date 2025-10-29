@@ -48,7 +48,7 @@ export function showChapterSelectionModal(allChapters, excluded) {
                     // If no title, any content counts as narration
                     if (!title) return true;
 
-                    return title.length < previewTextRaw.length ? true : false;
+                    return (previewTextRaw.length < title.length || previewTextRaw.length < 70) ? false : true;
                 } catch (e) { return true; }
             };
 

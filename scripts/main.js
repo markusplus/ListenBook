@@ -220,140 +220,203 @@ if (fileInput) {
 
                                 console.log('[UI] invoking ejecutarTTS — selected chapters:', seleccionados.length, seleccionados.map(c => c.titulo || c.title || c.href));
                                 console.log('[UI] referenceDataUrl present?', !!referenceDataUrl);
-                                const _ttsStart = Date.now();
-                                // Setup persistent progress widget (top-right)
-                                try {
-                                    // Estimate seconds per 50 chars (tunable). 0.0-∞. Adjust later if you want.
-                                    const BASE_SEC_PER_50 = 0.92; // seconds per 50 chars (estimate)
-                                    // approximate prompt length from selected chapters
-                                    const approxPromptLength = (seleccionados || []).map(c => ((c.contenido || c.text || c.content) || (c.titulo || c.title) || '')).join('\n').length || 0;
-                                    const units = Math.max(1, Math.ceil(approxPromptLength / 50));
-                                    const estimatedSeconds = units * BASE_SEC_PER_50;
-                                    let elapsedSeconds = 0;
-                                    createProgressWidget();
-                                    updateProgressWidget({ percent: 0, label: `Estimado: ${estimatedSeconds}s — Iniciando...` });
-                                    // tick every 1s to update percent as elapsed/estimated
-                                    const progressStart = Date.now();
-                                    const progressInterval = setInterval(() => {
-                                        elapsedSeconds = Math.floor((Date.now() - progressStart) / 1000);
-                                        let pct = estimatedSeconds > 0 ? (elapsedSeconds / estimatedSeconds) * 100 : 0;
-                                        if (pct > 99) pct = 99; // keep below 100 until finished
-                                        updateProgressWidget({ percent: pct, label: `Estimado: ${estimatedSeconds}s · ${elapsedSeconds}s transcurridos` });
-                                    }, 1000);
-                                    // store interval so we can clear on completion
-                                    window.__tts_progress_interval = progressInterval;
-                                    window.__tts_progress_meta = { estimatedSeconds, progressStart };
-                                } catch (e) { console.warn('progress widget init failed', e); }
                                 // clear previous downloads for a fresh run
                                 try { clearDownloads(); } catch (e) {}
-                            const result = await ejecutarTTS(ebook, seleccionados, {
-                                // point to Gradio base URL; ejecutarTTS will post to /predict
-                                serverUrl: 'http://127.0.0.1:7860',
-                                statusBase: 'http://127.0.0.1:7860',
-                                // allow passing user-uploaded data URL; fallback to proxy example audio
-                                referenceAudioDataUrl: referenceDataUrl,
-                                referenceAudioUrl: 'http://127.0.0.1:3002/proxy?url=' + encodeURIComponent('https://github.com/gradio-app/gradio/raw/main/test/test_files/audio_sample.wav'),
-                                // prefer using local proxy for server-side Gradio invocation
-                                proxyGradioCallUrl: 'http://127.0.0.1:3002/gradio_call',
-                                // extend client-side fetch timeout to 10 minutes to avoid premature aborts
-                                // 0 = wait indefinitely (no client-side abort)
-                                clientTimeout: 0,
-                                pollInterval: 1500,
-                                timeout: 1000 * 60 * 5,
-                                onProgress: (status) => {
-                                    try{
-                                        const el = document.getElementById('tts-progress');
-                                        if (el) {
-                                            let html = '';
-                                            if (status.jobId) html += `<div>Job: ${status.jobId}</div>`;
-                                            if (status.status) html += `<div>Estado: ${status.status}</div>`;
-                                            if (status.diagnostics && status.diagnostics.length) html += `<div>Diagnostics: ${status.diagnostics.length} items</div>`;
-                                            if (status.files && status.files.length) html += `<div>Archivos generados: ${status.files.length}</div>`;
-                                            el.innerHTML = html;
-                                        }
-                                    }catch(e){ console.error('progress update err', e); }
-                                }
-                            });
 
-                                const _ttsMs = Date.now() - _ttsStart;
-                                // clear progress widget
-                                try {
-                                    if (window.__tts_progress_interval) { clearInterval(window.__tts_progress_interval); window.__tts_progress_interval = null; }
-                                    removeProgressWidget();
-                                } catch (e) {}
-                                console.log('[UI] ejecutarTTS finished in', _ttsMs, 'ms — raw result:', result);
-                            // When done, try to extract file URLs from result and add to downloads
-                            try {
-                                // Defensive: if result is a JSON string, try to parse it
-                                let normalized = result;
-                                if (typeof normalized === 'string') {
-                                    try { normalized = JSON.parse(normalized); console.log('[UI] parsed result string into object'); } catch (e) { console.warn('[UI] result is string but not JSON'); }
-                                }
-                                const files = extractFilesFromResult(normalized || {});
-                                console.log('[UI] extracted files:', files);
-                                try {
-                                    if (files && files.length >= 2) {
-                                        // Delete files[0] on server and rename files[1] to book+chapter+creationDate.wav
-                                        const f0 = files[0];
-                                        const f1 = files[1];
-                                        // extract raw paths
-                                        function rawPathFromFileObj(f) {
-                                            if (!f) return null;
-                                            if (f.path) return f.path;
-                                            if (f.url) {
-                                                const m = String(f.url).match(/file=(.*)$/);
-                                                if (m && m[1]) return decodeURIComponent(m[1]);
-                                            }
-                                            return null;
-                                        }
-                                        const path0 = rawPathFromFileObj(f0);
-                                        const path1 = rawPathFromFileObj(f1);
-                                        // build desired base name
-                                        const bookTitleRaw = (ebook && (ebook.titulo || ebook.title)) ? (ebook.titulo || ebook.title) : 'ebook';
-                                        const bookTitleNoSpaces = String(bookTitleRaw).replace(/\s+/g, '');
-                                        // pick chapter name from selection: assume first selected chapter corresponds to files[1]
-                                        let chapterName = 'capitulo1';
-                                        try { if (Array.isArray(seleccionados) && seleccionados.length > 0) chapterName = seleccionados[0].titulo || seleccionados[0].title || chapterName; } catch(e){}
-                                        const chapterSafe = String(chapterName).replace(/\s+/g, '');
-                                        const desiredBase = `${bookTitleNoSpaces}${chapterSafe}`;
-
-                                        // Call proxy finalize endpoint: delete directory of file0, move file1 into outputs/<bookName>/<book_chapter_date>.wav
+                                // Process each chapter separately (one predict per chapter)
+                                for (let ci = 0; ci < (seleccionados || []).length; ci++) {
+                                    const chap = seleccionados[ci];
+                                    try {
+                                        // Setup per-chapter progress widget
                                         try {
-                                            const finalResp = await fetch('http://127.0.0.1:3002/gradio_finalize', {
-                                                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                                body: JSON.stringify({ deleteDirPath: path0, targetPath: path1, bookName: bookTitleNoSpaces, chapterName: chapterSafe, baseUrl: 'http://127.0.0.1:7860' })
-                                            });
-                                            if (finalResp && finalResp.ok) {
-                                                    const fj = await finalResp.json().catch(() => null);
-                                                    const finalUrl = (fj && fj.ok && (fj.outputsUrl || fj.url)) ? (fj.outputsUrl || fj.url) : null;
-                                                    if (finalUrl) {
-                                                        addDownloadLink(finalUrl, fj && fj.filename ? fj.filename : f1.filename);
-                                                    } else {
-                                                        // Finalize didn't return an outputs URL — refresh outputs list (do not show Gradio temp files)
-                                                        try { await fetchAndShowOutputsDir(); } catch (e) { /* ignore */ }
+                                            const BASE_SEC_PER_50 = 0.92; // seconds per 50 chars (estimate)
+                                            const textForLength = ((chap.contenido || chap.text || chap.content) || (chap.titulo || chap.title) || '');
+                                            const approxPromptLength = (textForLength || '').length || 0;
+                                            const units = Math.max(1, Math.ceil(approxPromptLength / 50));
+                                            const estimatedSeconds = units * BASE_SEC_PER_50;
+                                            let elapsedSeconds = 0;
+                                            createProgressWidget();
+                                            updateProgressWidget({ percent: 0, label: `Estimado: ${estimatedSeconds}s — Iniciando capítulo ${ci+1}/${seleccionados.length}` });
+                                            const progressStart = Date.now();
+                                            const progressInterval = setInterval(() => {
+                                                elapsedSeconds = Math.floor((Date.now() - progressStart) / 1000);
+                                                let pct = estimatedSeconds > 0 ? (elapsedSeconds / estimatedSeconds) * 100 : 0;
+                                                if (pct > 99) pct = 99;
+                                                updateProgressWidget({ percent: pct, label: `Cap ${ci+1}/${seleccionados.length} · Est: ${estimatedSeconds}s · ${elapsedSeconds}s` });
+                                            }, 1000);
+                                            window.__tts_progress_interval = progressInterval;
+                                            window.__tts_progress_meta = { estimatedSeconds, progressStart };
+                                        } catch (e) { console.warn('progress widget init failed', e); }
+
+                                        // One predict per chapter: pass single chapter
+                                        const result = await ejecutarTTS(ebook, [chap], {
+                                            serverUrl: 'http://127.0.0.1:7860',
+                                            statusBase: 'http://127.0.0.1:7860',
+                                            referenceAudioDataUrl: referenceDataUrl,
+                                            referenceAudioUrl: 'http://127.0.0.1:3002/proxy?url=' + encodeURIComponent('https://github.com/gradio-app/gradio/raw/main/test/test_files/audio_sample.wav'),
+                                            proxyGradioCallUrl: 'http://127.0.0.1:3002/gradio_call',
+                                            clientTimeout: 0,
+                                            pollInterval: 1500,
+                                            timeout: 1000 * 60 * 10,
+                                            onProgress: (status) => {
+                                                try{
+                                                    const el = document.getElementById('tts-progress');
+                                                    if (el) {
+                                                        let html = '';
+                                                        if (status.jobId) html += `<div>Job: ${status.jobId}</div>`;
+                                                        if (status.status) html += `<div>Estado: ${status.status}</div>`;
+                                                        if (status.diagnostics && status.diagnostics.length) html += `<div>Diagnostics: ${status.diagnostics.length} items</div>`;
+                                                        if (status.files && status.files.length) html += `<div>Archivos generados: ${status.files.length}</div>`;
+                                                        el.innerHTML = html;
                                                     }
-                                                } else {
+                                                }catch(e){ console.error('progress update err', e); }
+                                            }
+                                        });
+
+                                        // clear per-chapter progress
+                                        try {
+                                            if (window.__tts_progress_interval) { clearInterval(window.__tts_progress_interval); window.__tts_progress_interval = null; }
+                                            removeProgressWidget();
+                                        } catch (e) {}
+
+                                        // Process result for this chapter (same logic as before, but use chap as source for naming)
+                                        try {
+                                            let normalized = result;
+                                            if (typeof normalized === 'string') {
+                                                try { normalized = JSON.parse(normalized); console.log('[UI] parsed result string into object'); } catch (e) { console.warn('[UI] result is string but not JSON'); }
+                                            }
+                                            const files = extractFilesFromResult(normalized || {});
+                                            console.log('[UI] extracted files for chapter', ci, files);
+                                            try {
+                                                if (files && files.length >= 2) {
+                                                    const f0 = files[0];
+                                                    const f1 = files[1];
+                                                    function rawPathFromFileObj(f) {
+                                                        if (!f) return null;
+                                                        if (f.path) return f.path;
+                                                        if (f.url) {
+                                                            const m = String(f.url).match(/file=(.*)$/);
+                                                            if (m && m[1]) return decodeURIComponent(m[1]);
+                                                        }
+                                                        return null;
+                                                    }
+                                                    const path0 = rawPathFromFileObj(f0);
+                                                    const path1 = rawPathFromFileObj(f1);
+                                                    const bookTitleRaw = (ebook && (ebook.titulo || ebook.title)) ? (ebook.titulo || ebook.title) : 'ebook';
+                                                    const bookTitleNoSpaces = String(bookTitleRaw).replace(/\s+/g, '');
+                                                    let chapterName = 'capitulo';
+                                                    try { chapterName = chap.titulo || chap.title || chapterName; } catch(e){}
+                                                    const chapterSafe = String(chapterName).replace(/\s+/g, '');
+
+                                                    try {
+                                                        // Retry loop for /gradio_finalize to handle transient network errors
+                                                        const finalizeUrl = 'http://127.0.0.1:3002/gradio_finalize';
+                                                        const finalizeBody = JSON.stringify({ deleteDirPath: path0, targetPath: path1, bookName: bookTitleNoSpaces, chapterName: chapterSafe, baseUrl: 'http://127.0.0.1:7860' });
+                                                        const maxFinalizeAttempts = 3;
+                                                        let finalResp = null;
+                                                        for (let fa = 1; fa <= maxFinalizeAttempts; fa++) {
+                                                            try {
+                                                                const controllerF = new AbortController();
+                                                                // per-attempt timeout so fetch doesn't hang indefinitely
+                                                                const attemptTimeoutMs = 30 * 1000; // 30s
+                                                                const attemptTo = setTimeout(() => { try { controllerF.abort(); } catch (e) {} }, attemptTimeoutMs);
+                                                                finalResp = await fetch(finalizeUrl, {
+                                                                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                                                    body: finalizeBody,
+                                                                    signal: controllerF.signal,
+                                                                    mode: 'cors'
+                                                                });
+                                                                clearTimeout(attemptTo);
+                                                                // if we get a response (even non-ok), stop retrying
+                                                                break;
+                                                            } catch (errFinal) {
+                                                                console.warn(`[UI] gradio_finalize attempt ${fa} failed:`, errFinal && errFinal.message ? errFinal.message : errFinal);
+                                                                // If the page is being auto-reloaded by a dev server, in-flight fetches
+                                                                // will be aborted and produce 'Failed to fetch'. In that case try a
+                                                                // fire-and-forget sendBeacon so the finalize request still reaches
+                                                                // the proxy even if the page reloads.
+                                                                try {
+                                                                    if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+                                                                        try {
+                                                                            const blob = new Blob([finalizeBody], { type: 'application/json' });
+                                                                            const beaconOk = navigator.sendBeacon(finalizeUrl, blob);
+                                                                            console.log('[UI] gradio_finalize via sendBeacon:', beaconOk ? 'sent' : 'failed');
+                                                                            // Give the proxy a moment to move files, then refresh outputs
+                                                                            await new Promise(r => setTimeout(r, 1200));
+                                                                            await fetchAndShowOutputsDir();
+                                                                            // stop retrying since we've attempted sendBeacon fallback
+                                                                            finalResp = null;
+                                                                            break;
+                                                                        } catch (beErr) {
+                                                                            console.warn('[UI] sendBeacon finalize failed', beErr);
+                                                                        }
+                                                                    }
+                                                                } catch (beaconCatch) { /* ignore */ }
+                                                                // small backoff before retrying
+                                                                if (fa < maxFinalizeAttempts) await new Promise(r => setTimeout(r, 500 * fa));
+                                                                else {
+                                                                    console.error('[UI] gradio_finalize all attempts failed', errFinal);
+                                                                    finalResp = null;
+                                                                }
+                                                            }
+                                                        }
+
+                                                        if (finalResp) {
+                                                            // Defensive parsing: some proxy responses may not be JSON
+                                                            let fj = null;
+                                                            try {
+                                                                const bodyText = await finalResp.text().catch(() => null);
+                                                                if (bodyText) {
+                                                                    try { fj = JSON.parse(bodyText); } catch (e) { fj = null; console.warn('gradio_finalize returned non-JSON body'); }
+                                                                }
+                                                            } catch (e) { fj = null; }
+
+                                                            if (finalResp.ok) {
+                                                                const finalUrl = (fj && fj.ok && (fj.outputsUrl || fj.url)) ? (fj.outputsUrl || fj.url) : null;
+                                                                if (finalUrl) {
+                                                                    addDownloadLink(finalUrl, fj && fj.filename ? fj.filename : f1.filename);
+                                                                } else {
+                                                                    try { await fetchAndShowOutputsDir(); } catch (e) { /* ignore */ }
+                                                                }
+                                                            } else {
+                                                                // not ok: show outputs dir for recovery (and possibly log parsed body)
+                                                                console.warn('gradio_finalize returned non-ok status', finalResp.status, fj);
+                                                                try { await fetchAndShowOutputsDir(); } catch (e) { /* ignore */ }
+                                                            }
+                                                        } else {
+                                                            // all finalize attempts failed: refresh outputs dir to recover and continue
+                                                            try { await fetchAndShowOutputsDir(); } catch (e) { /* ignore */ }
+                                                        }
+                                                    } catch (e) { console.error('finalize error', e); try { await fetchAndShowOutputsDir(); } catch (e2) {} }
+                                                } else if (files && files.length === 1) {
                                                     try { await fetchAndShowOutputsDir(); } catch (e) { /* ignore */ }
+                                                } else {
+                                                    console.warn('[UI] no files found in result for chapter', ci);
+                                                    if (typeof Swal !== 'undefined') Swal.fire({ icon: 'error', title: 'Error', text: `No se encontraron audios generados para el capítulo ${ci+1}.` });
                                                 }
-                                            } catch (e) { console.error('finalize error', e); try { await fetchAndShowOutputsDir(); } catch (e2) {} }
-                                    } else if (files && files.length === 1) {
-                                        // only one file — do not show ephemeral Gradio temp files; refresh outputs dir
-                                        try { await fetchAndShowOutputsDir(); } catch (e) { /* ignore */ }
-                                    } else {
-                                        console.warn('[UI] no files found in result');
-                                        if (typeof Swal !== 'undefined') Swal.fire({ icon: 'error', title: 'Error', text: 'No se encontraron audios generados.' });
+                                            } catch (e) {
+                                                console.error('Error processing files for delete/rename', e);
+                                            }
+                                        } catch (e) {
+                                            console.error('Error procesando resultado TTS para descargas', e);
+                                            if (typeof Swal !== 'undefined') Swal.fire({ icon: 'error', title: 'Error', text: 'La generación finalizó pero no se pudieron procesar los archivos.' });
+                                        }
+
+                                        // Refresh downloads listing after each chapter
+                                        try { await fetchAndShowOutputsDir(); } catch (e) { console.warn('fetchAndShowOutputsDir failed', e); }
+                                    } catch (errChapter) {
+                                        try { if (window.__tts_progress_interval) { clearInterval(window.__tts_progress_interval); window.__tts_progress_interval = null; } removeProgressWidget(); } catch(e){}
+                                        try {
+                                            console.error('Error ejecutando TTS para capítulo', ci, errChapter);
+                                            console.error('Error ejecutando TTS (JSON):', JSON.stringify(errChapter, Object.getOwnPropertyNames(errChapter), 2));
+                                        } catch (e) { console.error('Error serializing error object', e, errChapter); }
+                                        if (typeof Swal !== 'undefined') {
+                                            const detail = (errChapter && (errChapter.message || errChapter.details || errChapter.toString())) ? (errChapter.message || errChapter.details || errChapter.toString()) : 'Error desconocido';
+                                            const small = String(detail).slice(0, 1000);
+                                            Swal.fire({ icon: 'error', title: 'Error', html: `<pre style="text-align:left; white-space:pre-wrap; word-break:break-word">${small}</pre>` });
+                                        }
                                     }
-                                } catch (e) {
-                                    console.error('Error processing files for delete/rename', e);
                                 }
-                            } catch (e) {
-                                console.error('Error procesando resultado TTS para descargas', e);
-                                if (typeof Swal !== 'undefined') Swal.fire({ icon: 'error', title: 'Error', text: 'La generación finalizó pero no se pudieron procesar los archivos.' });
-                            }
-                            // Refresh downloads from outputs directory only
-                            try {
-                                await fetchAndShowOutputsDir();
-                            } catch (e) { console.warn('fetchAndShowOutputsDir failed', e); }
                             } catch (err) {
                                 try { if (window.__tts_progress_interval) { clearInterval(window.__tts_progress_interval); window.__tts_progress_interval = null; } removeProgressWidget(); } catch(e){}
                             // Log full error object (handles non-Error throws)

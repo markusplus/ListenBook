@@ -63,6 +63,7 @@ div .swal2-icon {
 #logo_container {
     width: fit-content;
     height: fit-content;
+    cursor: default;
 }
 
 header {
