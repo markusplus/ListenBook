@@ -253,7 +253,13 @@ if (fileInput) {
                                             serverUrl: 'http://127.0.0.1:7860',
                                             statusBase: 'http://127.0.0.1:7860',
                                             referenceAudioDataUrl: referenceDataUrl,
-                                            referenceAudioUrl: 'http://127.0.0.1:3002/proxy?url=' + encodeURIComponent('https://github.com/gradio-app/gradio/raw/main/test/test_files/audio_sample.wav'),
+                                            // default example audio served from the ListenBook folder
+                                            referenceAudioUrl: (function(){
+                                                try {
+                                                    // resolve relative to current page so it works whether Live Server serves ListenBook
+                                                    return new URL('default_audios/esp_default/narrador_esp.wav', window.location.href).toString();
+                                                } catch(e) { return '/default_audios/esp_default/narrador_esp.wav'; }
+                                            })(),
                                             proxyGradioCallUrl: 'http://127.0.0.1:3002/gradio_call',
                                             clientTimeout: 0,
                                             pollInterval: 1500,
@@ -303,15 +309,13 @@ if (fileInput) {
                                                     const path0 = rawPathFromFileObj(f0);
                                                     const path1 = rawPathFromFileObj(f1);
                                                     const bookTitleRaw = (ebook && (ebook.titulo || ebook.title)) ? (ebook.titulo || ebook.title) : 'ebook';
-                                                    const bookTitleNoSpaces = String(bookTitleRaw).replace(/\s+/g, '');
                                                     let chapterName = 'capitulo';
                                                     try { chapterName = chap.titulo || chap.title || chapterName; } catch(e){}
-                                                    const chapterSafe = String(chapterName).replace(/\s+/g, '');
 
                                                     try {
                                                         // Retry loop for /gradio_finalize to handle transient network errors
                                                         const finalizeUrl = 'http://127.0.0.1:3002/gradio_finalize';
-                                                        const finalizeBody = JSON.stringify({ deleteDirPath: path0, targetPath: path1, bookName: bookTitleNoSpaces, chapterName: chapterSafe, baseUrl: 'http://127.0.0.1:7860' });
+                                                        const finalizeBody = JSON.stringify({ deleteDirPath: path0, targetPath: path1, bookName: bookTitleRaw, chapterName: chapterName, baseUrl: 'http://127.0.0.1:7860' });
                                                         const maxFinalizeAttempts = 3;
                                                         let finalResp = null;
                                                         for (let fa = 1; fa <= maxFinalizeAttempts; fa++) {

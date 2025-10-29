@@ -115,12 +115,41 @@ export async function ejecutarTTS(ebook, chapters, options) {
         if (options && options.referenceAudioDataUrl) {
             payload.audio_file_pth = options.referenceAudioDataUrl;
         } else if (options && options.referenceAudioUrl && (!payload.audio_file_pth || !payload.audio_file_pth.path)) {
-            // fetch the reference audio (proxy expected to return a data: URL)
+            // fetch the reference audio. The endpoint may return JSON { dataUrl }
+            // (proxy /proxy) or serve a raw audio file. Support both by attempting
+            // JSON first and falling back to arrayBuffer->base64 data URL conversion.
             try {
                 const r = await fetch(options.referenceAudioUrl);
-                if (r.ok) {
-                    const j = await r.json();
-                    if (j && j.dataUrl) payload.audio_file_pth = j.dataUrl;
+                if (r && r.ok) {
+                    const contentType = (r.headers && r.headers.get) ? (r.headers.get('content-type') || '') : '';
+                    let used = false;
+                    // try JSON parse first (some proxies return { dataUrl })
+                    try {
+                        const j = await r.clone().json().catch(() => null);
+                        if (j && j.dataUrl) {
+                            payload.audio_file_pth = j.dataUrl;
+                            used = true;
+                        }
+                    } catch (e) { /* ignore json parse errors */ }
+
+                    if (!used) {
+                        try {
+                            const ab = await r.arrayBuffer();
+                            const bytes = new Uint8Array(ab);
+                            // convert to base64 in chunks to avoid stack/arg limits
+                            let binary = '';
+                            const chunkSize = 0x8000;
+                            for (let i = 0; i < bytes.length; i += chunkSize) {
+                                const sub = bytes.subarray(i, i + chunkSize);
+                                binary += String.fromCharCode.apply(null, Array.from(sub));
+                            }
+                            const b64 = btoa(binary);
+                            const mime = contentType && contentType.length ? contentType.split(';')[0] : 'audio/wav';
+                            payload.audio_file_pth = `data:${mime};base64,${b64}`;
+                        } catch (e2) {
+                            console.warn('failed to convert reference audio to data URL', e2);
+                        }
+                    }
                 }
             } catch (e) {
                 console.warn('failed to fetch referenceAudioUrl', e);
