@@ -24,8 +24,10 @@
                 <section id="upload_section">
                     <h2>Sube tu archivo</h2>
                     <form action="upload.php" method="post" enctype="multipart/form-data" class="form_subida">
-                        <input id="file-upload" type="file" name="file">
+                        <input id="file-upload" type="file" name="file" multiple>
                     </form>
+                    <input id="dir-upload" type="file" webkitdirectory directory multiple style="display:none" />
+                    <button id="dir-upload-btn" type="button" style="margin-top:8px; padding:6px 10px; font-size:0.9rem;">Subir carpeta</button>
                 </section>
             </div>
             <div class="display_item" style="display: none;" id="downloads_section">
@@ -46,7 +48,18 @@
                 </div>
             </div>
         </div>
-        <div id="configuracion_section" style="display: none;">
+        <div id="reproducir_section" class="section" style="display: none;">
+            <div id="reproducir_selector">
+                <h2 id="reproducir_titulo"></h2>
+                <img id="reproducir_cover" style="max-width: 200px; height: auto;"/>
+            </div>
+            <div id="reproductor_display" style="display: none;">
+                <audio id="audio_player" controls>
+                    Your browser does not support the audio element.
+                </audio>
+            </div>
+        </div>
+        <div id="configuracion_section" class="section" style="display: none;">
             <div id="configuracion">
                 <div class="display_item_portada">
                     <div id="portada_display">

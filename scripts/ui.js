@@ -12,8 +12,52 @@ export function toast(msg, opts = {}) {
     Swal.fire({ toast: true, position: 'top-end', showConfirmButton: false, timer: opts.timer || 2000, title: msg });
 }
 
-export function showChapterSelectionModal(allChapters, excluded) {
-    return new Promise((resolve) => {
+export function showChapterSelectionModal(allChapters, excluded, bookTitleRaw) {
+    return new Promise(async (resolve) => {
+        // If a book title was provided, query the proxy to see which chapter files already exist
+    // We'll collect keys of the form `${chapterToken}__${order}` to uniquely identify chapters.
+    const existingChapterTokens = new Set();
+        try {
+            if (bookTitleRaw) {
+                // client-side TitleCase normalization (match server behavior): extract alnum tokens, capitalize first letter, rest lower, join without separator for book folder
+                const tokenRe = /[\p{L}\p{N}]+/gu;
+                const tokens = Array.from(String(bookTitleRaw).matchAll(tokenRe)).map(m => m[0]);
+                const cap = tokens.map(t => t.charAt(0).toUpperCase() + t.slice(1).toLowerCase()).join('');
+                const safeBook = cap || String(bookTitleRaw).replace(/[^A-Za-z0-9]/g, '_');
+                const outputsDir = `D:\\TTS\\outputs\\${safeBook}`;
+                const proxy = 'http://127.0.0.1:3002/gradio_outputs?dir=' + encodeURIComponent(outputsDir);
+                const resp = await fetch(proxy);
+                if (resp && resp.ok) {
+                    const j = await resp.json().catch(() => null);
+                    if (j && Array.isArray(j.files)) {
+                        for (const f of j.files) {
+                            try {
+                                const filename = f.filename || f.file || f.path || '';
+                                if (!filename) continue;
+                                if (!/\.wav$/i.test(filename)) continue;
+                                // New filename format: <Book>_<ChapterToken>_<Order>_<YYYYMMDD>.wav
+                                // We'll try to extract chapter token and order. If order is missing
+                                // fall back to older format (chapter token only).
+                                const mWithOrder = String(filename).match(/^[^_]*_([^_]*)_(\d+)_/);
+                                if (mWithOrder && mWithOrder[1]) {
+                                    const token = mWithOrder[1];
+                                    const order = mWithOrder[2];
+                                    existingChapterTokens.add(`${token}__${order}`);
+                                    continue;
+                                }
+                                // legacy fallback: extract token between first and second underscore
+                                const mLegacy = String(filename).match(/^[^_]*_([^_]*)_/);
+                                if (mLegacy && mLegacy[1]) {
+                                    existingChapterTokens.add(`${mLegacy[1]}__`); // order unknown
+                                }
+                            } catch (e) { /* ignore per-file errors */ }
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn('[ui] failed to query outputs for existing chapters', e);
+        }
         // helper: strip HTML tags
         const stripTags = (s) => (s || '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
         // helper: extract text from possible nested/array/object fields
@@ -67,7 +111,29 @@ export function showChapterSelectionModal(allChapters, excluded) {
 
             const checked = (isExcluded || !substantive) ? '' : 'checked';
             const escTitle = title.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-            const note = substantive ? '' : ' <small style="color:#666">(sin narración)</small>';
+            // mark already-generated chapters based on filename tokens + order
+            let generatedNote = '';
+            try {
+                // compute chapter token in same way server does for chapter naming: TitleCase tokens joined with underscores
+                const tokenRe = /[\p{L}\p{N}]+/gu;
+                const chapTokens = Array.from(String(title).matchAll(tokenRe)).map(m => m[0]);
+                const chapTokenName = chapTokens.map(t => t.charAt(0).toUpperCase() + t.slice(1).toLowerCase()).join('_');
+                // chapter order may be present in the chapter object as 'numero'
+                const chapOrder = (c && (c.numero || c.number || c.index)) ? String(c.numero || c.number || c.index) : null;
+                if (chapOrder) {
+                    // Strict match: require both chapter token and order to match exactly
+                    if (existingChapterTokens.has(`${chapTokenName}__${chapOrder}`)) {
+                        generatedNote = ' <small style="color:green">(ya generado)</small>';
+                    }
+                } else {
+                    // No order info available for this chapter: fall back to legacy token-only matching
+                    if (existingChapterTokens.has(`${chapTokenName}__`) || Array.from(existingChapterTokens).some(k => k.startsWith(chapTokenName + '__'))) {
+                        generatedNote = ' <small style="color:green">(ya generado)</small>';
+                    }
+                }
+            } catch (e) { /* ignore */ }
+
+            const note = substantive ? generatedNote : ' <small style="color:#666">(sin narración)</small>';
             return `<div style="margin:6px 0;"><label><input type="checkbox" name="chap-${i}" value="${i}" ${checked} /> <span style="margin-left:8px">${escTitle}${note}</span></label></div>`;
         }).join('');
 

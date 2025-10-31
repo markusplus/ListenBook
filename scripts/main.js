@@ -18,6 +18,9 @@ if (dropArea) {
 }
 
 const fileInput = document.getElementById('file-upload');
+// Directory upload elements (hidden input + trigger button)
+const dirInput = document.getElementById('dir-upload');
+const dirUploadBtn = document.getElementById('dir-upload-btn');
 // Global error handlers to surface unhandled rejections and prevent silent failures
 window.addEventListener('unhandledrejection', (ev) => {
     console.error('[global] unhandledrejection', ev.reason);
@@ -181,7 +184,7 @@ if (fileInput) {
                         closeProcessing();
                         const allCaps = resultado.all || [];
                         const excluded = resultado.excluded || [];
-                        const seleccionados = await showChapterSelectionModal(allCaps, excluded);
+                        const seleccionados = await showChapterSelectionModal(allCaps, excluded, (ebook && (ebook.titulo || ebook.title)) ? (ebook.titulo || ebook.title) : null);
                         if (!seleccionados) { console.log('Selección cancelada'); return; }
                         console.log('Capítulos seleccionados:', seleccionados);
 
@@ -315,7 +318,9 @@ if (fileInput) {
                                                     try {
                                                         // Retry loop for /gradio_finalize to handle transient network errors
                                                         const finalizeUrl = 'http://127.0.0.1:3002/gradio_finalize';
-                                                        const finalizeBody = JSON.stringify({ deleteDirPath: path0, targetPath: path1, bookName: bookTitleRaw, chapterName: chapterName, baseUrl: 'http://127.0.0.1:7860' });
+                                                            // include chapter order (numero) so server can name files with order
+                                                            const chapterOrder = (chap && (chap.numero || chap.number)) ? (chap.numero || chap.number) : (ci + 1);
+                                                            const finalizeBody = JSON.stringify({ deleteDirPath: path0, targetPath: path1, bookName: bookTitleRaw, chapterName: chapterName, chapterOrder: chapterOrder, baseUrl: 'http://127.0.0.1:7860' });
                                                         const maxFinalizeAttempts = 3;
                                                         let finalResp = null;
                                                         for (let fa = 1; fa <= maxFinalizeAttempts; fa++) {
@@ -450,6 +455,205 @@ if (fileInput) {
         }
     });
 }
+
+// Handle directory-picker button (opens picker) and directory selection behavior
+try {
+    if (dirUploadBtn && dirInput) {
+        dirUploadBtn.addEventListener('click', (ev) => { ev.preventDefault(); try { dirInput.click(); } catch (e) {} });
+    }
+    if (dirInput) {
+        dirInput.addEventListener('change', (ev) => {
+            try {
+                const files = dirInput.files;
+                if (!files || files.length === 0) return;
+                const header = document.getElementById('header_container');
+                const reproducir = document.getElementById('reproducir_section');
+                if (header) header.style.display = 'none';
+                if (reproducir) reproducir.style.display = 'block';
+                try { sendDebugEvent({ type: 'dir_selected', count: files.length }); } catch (e) {}
+
+                // Look for an EPUB in the selected directory and, if found, parse metadata and chapters
+                (async () => {
+                    try {
+                        const fileArr = Array.from(files || []);
+                        const epubFile = fileArr.find(f => /\.epub$/i.test(f.name));
+                        if (!epubFile) {
+                            console.warn('[dir] no EPUB found in selected directory');
+                            return;
+                        }
+                        // Parse EPUB metadata
+                        const ebook = new Ebook(epubFile);
+                        try { showProcessing('Procesando carpeta', 'Extrayendo metadatos del EPUB...'); } catch(e){}
+                        await ebook.parse();
+                        try { closeProcessing(); } catch(e){}
+
+                        // Set cover and title in the reproducir area
+                        try {
+                            const coverEl = document.getElementById('reproducir_cover');
+                            const titleEl = document.getElementById('reproducir_titulo');
+                            if (coverEl) {
+                                if (ebook.portada) coverEl.src = ebook.portada;
+                                else coverEl.removeAttribute('src');
+                            }
+                            if (titleEl) titleEl.textContent = ebook.titulo || ebook.title || epubFile.name;
+                        } catch (e) { console.warn('[dir] failed to set cover/title', e); }
+
+                        // Extract chapters (use filtered list to mimic selection elsewhere)
+                        let caps = [];
+                        try {
+                            showProcessing('Extrayendo capítulos', 'Por favor espera...');
+                            const resultado = await extraerCapitulos(ebook);
+                            caps = (resultado && resultado.filtered && resultado.filtered.length) ? resultado.filtered : (resultado.all || []);
+                        } catch (e) { console.warn('[dir] extraerCapitulos failed', e); }
+                        try { closeProcessing(); } catch(e){}
+
+                        // Build map of available WAVs in the directory: key -> File
+                        // key format: `${chapterToken}__${order}` when order is present, otherwise `${chapterToken}__` for legacy
+                        const wavMap = new Map();
+                        for (const f of fileArr) {
+                            try {
+                                if (!f || !f.name) continue;
+                                if (!/\.wav$/i.test(f.name)) continue;
+                                const name = String(f.name);
+                                // try new format: <Book>_<ChapterToken>_<Order>_<YYYYMMDD>.wav
+                                const mWithOrder = name.match(/^[^_]*_([^_]*)_(\d+)_/);
+                                if (mWithOrder && mWithOrder[1]) {
+                                    const token = mWithOrder[1];
+                                    const order = mWithOrder[2];
+                                    wavMap.set(`${token}__${order}`, f);
+                                    continue;
+                                }
+                                // legacy fallback: extract token between first and second underscore
+                                const mLegacy = name.match(/^[^_]*_([^_]*)_/);
+                                if (mLegacy && mLegacy[1]) {
+                                    wavMap.set(`${mLegacy[1]}__`, f);
+                                }
+                            } catch (e) { /* ignore file errors */ }
+                        }
+
+                        // Prepare chapter list container under reproducir_section
+                        let chaptersContainer = document.getElementById('reproducir_chapters');
+                        if (!chaptersContainer) {
+                            chaptersContainer = document.createElement('div');
+                            chaptersContainer.id = 'reproducir_chapters';
+                            chaptersContainer.classList.add('section_secundaria');
+                            chaptersContainer.style.marginTop = '12px';
+                            chaptersContainer.style.maxHeight = '40vh';
+                            chaptersContainer.style.overflow = 'auto';
+                            const parent = reproducir || document.getElementById('header_container');
+                            if (reproducir && reproducir.parentNode) reproducir.parentNode.insertBefore(chaptersContainer, reproducir.nextSibling);
+                            else document.body.appendChild(chaptersContainer);
+                        } else {
+                            chaptersContainer.innerHTML = '';
+                        }
+
+                        // Audio player element
+                        const audioPlayer = document.getElementById('audio_player');
+                        let currentObjectUrl = null;
+
+                        const ul = document.createElement('ul');
+                        ul.style.listStyle = 'none';
+                        ul.style.padding = '0';
+                        ul.style.margin = '0';
+
+                        const tokenRe = /[\p{L}\p{N}]+/gu;
+                        caps.forEach((chap, idx) => {
+                            const li = document.createElement('li');
+                            li.style.padding = '6px 8px';
+                            li.style.borderBottom = '1px solid rgba(255,255,255,0.04)';
+                            li.style.cursor = 'pointer';
+                            li.dataset.index = String(idx);
+                            const title = (chap.titulo || chap.title || `Capítulo ${idx+1}`).toString();
+                            const span = document.createElement('span');
+                            span.textContent = title;
+                            li.appendChild(span);
+
+                            // compute chapter token name (TitleCase tokens joined with underscores)
+                            let chapTokenName = '';
+                            try {
+                                const chapTokens = Array.from(String(title).matchAll(tokenRe)).map(m => m[0]);
+                                chapTokenName = chapTokens.map(t => t.charAt(0).toUpperCase() + t.slice(1).toLowerCase()).join('_');
+                            } catch (e) { chapTokenName = title.replace(/\s+/g, '_'); }
+
+                            // determine chapter order (prefer explicit numero from parsed chapters)
+                            const hasExplicitOrder = !!(chap && (chap.numero || chap.number));
+                            const chapOrder = hasExplicitOrder ? String(chap.numero || chap.number) : String(idx + 1);
+
+                            // Matching policy: if chapter has an explicit order from parsing, require exact token+order match.
+                            // Only when no explicit order is available, allow legacy token-only fallback.
+                            let wavFile = null;
+                            if (chapTokenName && hasExplicitOrder) {
+                                if (wavMap.has(`${chapTokenName}__${chapOrder}`)) {
+                                    wavFile = wavMap.get(`${chapTokenName}__${chapOrder}`);
+                                }
+                            } else if (chapTokenName) {
+                                // no explicit order: permissive fallback to any legacy or matching key
+                                if (wavMap.has(`${chapTokenName}__${chapOrder}`)) {
+                                    wavFile = wavMap.get(`${chapTokenName}__${chapOrder}`);
+                                } else if (wavMap.has(`${chapTokenName}__`)) {
+                                    wavFile = wavMap.get(`${chapTokenName}__`);
+                                } else {
+                                    for (const [k, v] of wavMap.entries()) {
+                                        if (k.startsWith(chapTokenName + '__')) { wavFile = v; break; }
+                                    }
+                                }
+                            }
+                            if (wavFile) {
+                                const playBtn = document.createElement('button');
+                                playBtn.type = 'button';
+                                playBtn.textContent = 'Reproducir ▶';
+                                playBtn.style.marginLeft = '12px';
+                                playBtn.addEventListener('click', (ev) => {
+                                    ev.stopPropagation();
+                                    try {
+                                        if (!audioPlayer) return;
+                                        if (currentObjectUrl) { try { URL.revokeObjectURL(currentObjectUrl); } catch (e) {} currentObjectUrl = null; }
+                                        const objUrl = URL.createObjectURL(wavFile);
+                                        currentObjectUrl = objUrl;
+                                        audioPlayer.src = objUrl;
+                                        // show player area
+                                        const reproductorDisplay = document.getElementById('reproductor_display');
+                                        if (reproductorDisplay) reproductorDisplay.style.display = 'block';
+                                        audioPlayer.play().catch(() => {});
+                                    } catch (e) { console.error('failed to play wav file', e); }
+                                });
+                                li.appendChild(playBtn);
+                            } else {
+                                const noSpan = document.createElement('small');
+                                noSpan.style.color = '#999';
+                                noSpan.style.marginLeft = '12px';
+                                noSpan.textContent = '(sin .wav correspondiente)';
+                                li.appendChild(noSpan);
+                            }
+
+                            // clicking the row also tries to play if available
+                            li.addEventListener('click', () => {
+                                try {
+                                    if (!wavFile) return;
+                                    if (!audioPlayer) return;
+                                    if (currentObjectUrl) { try { URL.revokeObjectURL(currentObjectUrl); } catch (e) {} currentObjectUrl = null; }
+                                    const objUrl = URL.createObjectURL(wavFile);
+                                    currentObjectUrl = objUrl;
+                                    audioPlayer.src = objUrl;
+                                    const reproductorDisplay = document.getElementById('reproductor_display');
+                                    if (reproductorDisplay) reproductorDisplay.style.display = 'block';
+                                    audioPlayer.play().catch(() => {});
+                                } catch (e) { console.error('row play failed', e); }
+                            });
+
+                            ul.appendChild(li);
+                        });
+
+                        chaptersContainer.appendChild(ul);
+
+                    } catch (err) {
+                        console.error('Error processing directory EPUB:', err);
+                    }
+                })();
+            } catch (e) { console.error('dir upload handler failed', e); }
+        });
+    }
+} catch (e) { console.warn('directory upload hookup failed', e); }
 
 // Helper to find file-like objects (with url/path) in various result shapes
 function extractFilesFromResult(obj) {
