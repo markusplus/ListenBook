@@ -92,6 +92,33 @@ function pickReferenceAudio() {
     });
 }
 
+// Set media metadata for lock-screen / notification controls using the Media Session API when available
+function setMediaSessionMetadata(bookTitle, chapterTitle, artworkUrl, filename) {
+    try {
+        if (typeof navigator === 'undefined' || !navigator.mediaSession) return;
+        const meta = {
+            title: chapterTitle || filename || 'ListenBook',
+            artist: bookTitle || '',
+            album: bookTitle || '',
+            artwork: []
+        };
+        if (artworkUrl) {
+            // include a few common sizes; the browser picks the best one
+            meta.artwork.push({ src: artworkUrl, sizes: '512x512', type: 'image/png' });
+            meta.artwork.push({ src: artworkUrl, sizes: '256x256', type: 'image/png' });
+            meta.artwork.push({ src: artworkUrl, sizes: '96x96', type: 'image/png' });
+        }
+        try { navigator.mediaSession.metadata = new MediaMetadata(meta); } catch (e) { /* some browsers require proper types */ }
+        try { navigator.mediaSession.playbackState = 'playing'; } catch (e) {}
+        // Optional: wire basic action handlers so the media notification controls work
+        try {
+            navigator.mediaSession.setActionHandler('play', () => { const ap = document.getElementById('audio_player'); if (ap) ap.play().catch(()=>{}); });
+            navigator.mediaSession.setActionHandler('pause', () => { const ap = document.getElementById('audio_player'); if (ap) ap.pause(); });
+            navigator.mediaSession.setActionHandler('seekto', (details) => { const ap = document.getElementById('audio_player'); if (ap && details && details.seekTime !== undefined) ap.currentTime = details.seekTime; });
+        } catch (e) { /* ignore action handler errors on unsupported browsers */ }
+    } catch (e) { console.warn('setMediaSessionMetadata failed', e); }
+}
+
 // -------------------------
 // Debug capture / send
 // -------------------------
@@ -611,6 +638,8 @@ try {
                                         const objUrl = URL.createObjectURL(wavFile);
                                         currentObjectUrl = objUrl;
                                         audioPlayer.src = objUrl;
+                                        // set media metadata for lock-screen / notification controls
+                                        try { setMediaSessionMetadata(ebook && (ebook.titulo || ebook.title) ? (ebook.titulo || ebook.title) : '', title, (ebook && ebook.portada) ? ebook.portada : null, wavFile && wavFile.name ? wavFile.name : 'audio.wav'); } catch (e) {}
                                         // show player area
                                         const reproductorDisplay = document.getElementById('reproductor_display');
                                         if (reproductorDisplay) reproductorDisplay.style.display = 'block';
@@ -635,6 +664,7 @@ try {
                                     const objUrl = URL.createObjectURL(wavFile);
                                     currentObjectUrl = objUrl;
                                     audioPlayer.src = objUrl;
+                                    try { setMediaSessionMetadata(ebook && (ebook.titulo || ebook.title) ? (ebook.titulo || ebook.title) : '', title, (ebook && ebook.portada) ? ebook.portada : null, wavFile && wavFile.name ? wavFile.name : 'audio.wav'); } catch (e) {}
                                     const reproductorDisplay = document.getElementById('reproductor_display');
                                     if (reproductorDisplay) reproductorDisplay.style.display = 'block';
                                     audioPlayer.play().catch(() => {});
