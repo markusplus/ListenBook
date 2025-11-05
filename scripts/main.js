@@ -119,6 +119,100 @@ function setMediaSessionMetadata(bookTitle, chapterTitle, artworkUrl, filename) 
     } catch (e) { console.warn('setMediaSessionMetadata failed', e); }
 }
 
+// Playback progress persistence helpers
+const __progress = { data: {}, dirHandle: null, storageKeyPrefix: 'listenbook.progress.' };
+
+function makeSafeBookKey(bookTitle) {
+    try {
+        const tokenRe = /[\p{L}\p{N}]+/gu;
+        const tokens = Array.from(String(bookTitle || '').matchAll(tokenRe)).map(m => m[0]);
+        const cap = tokens.map(t => t.charAt(0).toUpperCase() + t.slice(1).toLowerCase()).join('');
+        return cap || String(bookTitle || 'ebook').replace(/[^A-Za-z0-9]/g, '_');
+    } catch (e) { return String(bookTitle || 'ebook').replace(/[^A-Za-z0-9]/g, '_'); }
+}
+
+async function loadProgressFromHandle(dirHandle) {
+    try {
+        if (!dirHandle) return {};
+        const fh = await dirHandle.getFileHandle('progress.txt').catch(() => null);
+        if (!fh) return {};
+        const file = await fh.getFile();
+        const text = await file.text();
+        try { return JSON.parse(text); } catch (e) { return {}; }
+    } catch (e) { console.warn('loadProgressFromHandle failed', e); return {}; }
+}
+
+async function writeProgressToHandle(dirHandle, data) {
+    try {
+        if (!dirHandle) return false;
+        const fh = await dirHandle.getFileHandle('progress.txt', { create: true });
+        const writable = await fh.createWritable();
+        await writable.write(JSON.stringify(data, null, 2));
+        await writable.close();
+        return true;
+    } catch (e) { console.warn('writeProgressToHandle failed', e); return false; }
+}
+
+function loadProgressForBook(safeBook) {
+    try {
+        __progress.data = {};
+        const key = __progress.storageKeyPrefix + safeBook;
+        const raw = localStorage.getItem(key);
+        if (raw) {
+            try { __progress.data = JSON.parse(raw); } catch (e) { __progress.data = {}; }
+        }
+    } catch (e) { __progress.data = {}; }
+}
+
+function saveProgressForBook(safeBook) {
+    try {
+        const key = __progress.storageKeyPrefix + safeBook;
+        localStorage.setItem(key, JSON.stringify(__progress.data || {}));
+        // also try write to dir handle if available
+        if (__progress.dirHandle) writeProgressToHandle(__progress.dirHandle, __progress.data).catch(() => {});
+    } catch (e) { console.warn('saveProgressForBook failed', e); }
+}
+
+function getSavedPosition(filename) {
+    try { return (__progress.data && __progress.data[filename]) ? Number(__progress.data[filename]) : 0; } catch (e) { return 0; }
+}
+
+function setSavedPosition(filename, seconds) {
+    try {
+        __progress.data = __progress.data || {};
+        __progress.data[filename] = Math.floor(Number(seconds) || 0);
+    } catch (e) {}
+}
+
+async function promptAndEnableFolderSaving() {
+    try {
+        if (!window.showDirectoryPicker) {
+            alert('El navegador no soporta escritura directa en carpetas (File System Access API). Se usará localStorage en su lugar.');
+            return false;
+        }
+        const handle = await window.showDirectoryPicker();
+        __progress.dirHandle = handle;
+        const data = await loadProgressFromHandle(handle);
+        __progress.data = Object.assign({}, __progress.data || {}, data || {});
+        // write back merged data
+        await writeProgressToHandle(handle, __progress.data);
+        return true;
+    } catch (e) { console.warn('promptAndEnableFolderSaving failed', e); return false; }
+}
+
+function exportProgressFile(safeBook) {
+    try {
+        const blob = new Blob([JSON.stringify(__progress.data || {}, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'progress.txt';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => { try { document.body.removeChild(a); URL.revokeObjectURL(url); } catch (e) {} }, 1000);
+    } catch (e) { console.warn('exportProgressFile failed', e); }
+}
+
 // -------------------------
 // Debug capture / send
 // -------------------------
@@ -559,6 +653,9 @@ try {
                         }
 
                         // Prepare chapter list container under reproducir_section
+                        // also prepare progress storage for this book
+                        const safeBook = makeSafeBookKey(ebook && (ebook.titulo || ebook.title) ? (ebook.titulo || ebook.title) : epubFile.name);
+                        loadProgressForBook(safeBook);
                         let chaptersContainer = document.getElementById('reproducir_chapters');
                         if (!chaptersContainer) {
                             chaptersContainer = document.createElement('div');
@@ -574,9 +671,71 @@ try {
                             chaptersContainer.innerHTML = '';
                         }
 
+                        // Add progress controls (enable folder saving / export)
+                        const controlsBar = document.createElement('div');
+                        controlsBar.style.display = 'flex';
+                        controlsBar.style.gap = '8px';
+                        controlsBar.style.alignItems = 'center';
+                        controlsBar.style.marginBottom = '8px';
+                        const enableSaveBtn = document.createElement('button');
+                        enableSaveBtn.type = 'button';
+                        enableSaveBtn.textContent = 'Guardar progreso en carpeta';
+                        enableSaveBtn.addEventListener('click', async (ev) => {
+                            ev.preventDefault();
+                            try {
+                                const ok = await promptAndEnableFolderSaving();
+                                if (ok) alert('Acceso concedido. El progreso se guardará en la carpeta seleccionada.');
+                                else alert('No se pudo activar el guardado en carpeta.');
+                            } catch (e) { console.warn('enableSave failed', e); alert('Error al activar guardado en carpeta'); }
+                        });
+                        const exportBtn = document.createElement('button');
+                        exportBtn.type = 'button';
+                        exportBtn.textContent = 'Exportar progress.txt';
+                        exportBtn.addEventListener('click', (ev) => { ev.preventDefault(); try { exportProgressFile(safeBook); } catch (e) { console.warn(e); } });
+                        controlsBar.appendChild(enableSaveBtn);
+                        controlsBar.appendChild(exportBtn);
+                        chaptersContainer.appendChild(controlsBar);
+
                         // Audio player element
                         const audioPlayer = document.getElementById('audio_player');
                         let currentObjectUrl = null;
+
+                        // Persist current position on pause/ended and beforeunload
+                        try {
+                            audioPlayer.addEventListener('pause', async () => {
+                                try {
+                                    const fname = audioPlayer && audioPlayer.src ? (audioPlayer._playingFileName || null) : null;
+                                    if (fname) {
+                                        const pos = Math.floor(audioPlayer.currentTime || 0);
+                                        setSavedPosition(fname, pos);
+                                        // always persist to localStorage immediately
+                                        saveProgressForBook(safeBook);
+                                        // log to console that we're saving
+                                        try { console.log('[progress] saving progress for', fname, 'position', pos); } catch (e) {}
+                                        // if we have a directory handle, write progress.txt into it and log
+                                        if (__progress.dirHandle) {
+                                            try {
+                                                console.log('[progress] writing progress.txt to selected folder...');
+                                                await writeProgressToHandle(__progress.dirHandle, __progress.data);
+                                                console.log('[progress] progress.txt saved to folder.');
+                                            } catch (e) { console.warn('[progress] failed to write progress.txt to folder', e); }
+                                        }
+                                    }
+                                } catch (e) { console.warn('pause save failed', e); }
+                            });
+                            audioPlayer.addEventListener('ended', () => {
+                                try {
+                                    const fname = audioPlayer && audioPlayer.src ? (audioPlayer._playingFileName || null) : null;
+                                    if (fname) {
+                                        setSavedPosition(fname, 0); // reset on end
+                                        saveProgressForBook(safeBook);
+                                    }
+                                } catch (e) { console.warn('ended save failed', e); }
+                            });
+                            window.addEventListener('beforeunload', () => {
+                                try { saveProgressForBook(safeBook); } catch (e) {}
+                            });
+                        } catch (e) { /* ignore */ }
 
                         const ul = document.createElement('ul');
                         ul.style.listStyle = 'none';
@@ -638,6 +797,16 @@ try {
                                         const objUrl = URL.createObjectURL(wavFile);
                                         currentObjectUrl = objUrl;
                                         audioPlayer.src = objUrl;
+                                        // remember which file name we are playing so save handler can reference it
+                                        try { audioPlayer._playingFileName = wavFile && wavFile.name ? wavFile.name : null; } catch (e) {}
+                                        // if we have a saved position for this file, seek to it once metadata is loaded
+                                        try {
+                                            const savedSec = getSavedPosition(wavFile && wavFile.name ? wavFile.name : '');
+                                            if (savedSec && savedSec > 0) {
+                                                const onMeta = function() { try { if (audioPlayer.duration > savedSec) audioPlayer.currentTime = savedSec; } catch (e) {} };
+                                                audioPlayer.addEventListener('loadedmetadata', onMeta, { once: true });
+                                            }
+                                        } catch (e) {}
                                         // set media metadata for lock-screen / notification controls
                                         try { setMediaSessionMetadata(ebook && (ebook.titulo || ebook.title) ? (ebook.titulo || ebook.title) : '', title, (ebook && ebook.portada) ? ebook.portada : null, wavFile && wavFile.name ? wavFile.name : 'audio.wav'); } catch (e) {}
                                         // show player area
@@ -664,7 +833,15 @@ try {
                                     const objUrl = URL.createObjectURL(wavFile);
                                     currentObjectUrl = objUrl;
                                     audioPlayer.src = objUrl;
+                                    try { audioPlayer._playingFileName = wavFile && wavFile.name ? wavFile.name : null; } catch (e) {}
                                     try { setMediaSessionMetadata(ebook && (ebook.titulo || ebook.title) ? (ebook.titulo || ebook.title) : '', title, (ebook && ebook.portada) ? ebook.portada : null, wavFile && wavFile.name ? wavFile.name : 'audio.wav'); } catch (e) {}
+                                    // resume from saved pos if present
+                                    try {
+                                        const savedSec = getSavedPosition(wavFile && wavFile.name ? wavFile.name : '');
+                                        if (savedSec && savedSec > 0) {
+                                            audioPlayer.addEventListener('loadedmetadata', function onm() { try { if (audioPlayer.duration > savedSec) audioPlayer.currentTime = savedSec; } catch (e) {} }, { once: true });
+                                        }
+                                    } catch (e) {}
                                     const reproductorDisplay = document.getElementById('reproductor_display');
                                     if (reproductorDisplay) reproductorDisplay.style.display = 'block';
                                     audioPlayer.play().catch(() => {});
