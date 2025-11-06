@@ -202,6 +202,79 @@ header h1 {
     justify-content: center;
 }
 
+/* Mobile-specific adjustments when `.mobile` class is present on the <html> element */
+.mobile body {
+    padding: 30px;
+    box-sizing: border-box;
+}
+.mobile header {
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+}
+.mobile html, .mobile body {
+    /* prevent horizontal scroll on mobile; avoid 100vw which can change with UI chrome */
+    overflow-x: hidden;
+}
+.mobile * {
+    box-sizing: border-box;
+}
+.mobile #header_container {
+    width: 100%;
+    max-width: 95%;
+    margin: 6px 0;
+    box-sizing: border-box;
+}
+.mobile #logo {
+    width: 200px;
+    height: 200px;
+}
+.mobile #upload_section {
+    width: 100%;
+    padding: 12px;
+    align-items: center;
+}
+.mobile #reproducir_section {
+    width: 100%;
+    margin-top: 12px;
+    display: block;
+    box-sizing: border-box;
+    padding: 0 16px;
+    align-items: center;
+}
+.mobile #reproducir_selector {
+    align-items: center;
+}
+.mobile #reproducir_cover {
+    max-width: 140px;
+    width: 60%;
+    height: auto;
+    margin-top: 8px;
+}
+.mobile .section, .mobile .section_secundaria {
+    width: 100%;
+    padding: 12px 16px;
+    max-width: 100%;
+    overflow-x: hidden;
+    box-sizing: border-box;
+}
+
+/* smoother scrolling on iOS */
+.mobile #reproducir_chapters { -webkit-overflow-scrolling: touch; }
+.mobile #reproductor_display {
+    margin-top: 10px;
+    text-align: center;
+}
+.mobile .titulo_subtitulo h1 { font-size: 1.2rem; }
+.mobile .titulo_subtitulo p { font-size: 0.9rem; }
+
+/* smaller buttons and tighter spacing for mobile */
+.mobile .botonGeneral { padding: 10px 18px; font-size: 14px; }
+
+/* make the chapter list scrollable and readable on mobile */
+.mobile #reproducir_chapters { max-height: 40vh; overflow: auto; }
+
 /**
  * Footer.
  */

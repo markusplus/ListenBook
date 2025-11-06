@@ -4,6 +4,24 @@ import { createProgressWidget, updateProgressWidget, removeProgressWidget } from
 import { Ebook, extraerCapitulos } from './ebook.js';
 import { ejecutarTTS } from './ttsProcess.js';
 
+const GRADIO_HOST = '192.168.1.131';
+const GRADIO_PORT = 7860;
+const GRADIO_BASE = `http://${GRADIO_HOST}:${GRADIO_PORT}`;
+
+// Mobile detection and activation: add 'mobile' class to <html> when accessed from a smartphone or narrow viewport
+function activateMobileIfNeeded() {
+    try {
+        const ua = navigator.userAgent || '';
+        const isMobileUA = /Mobi|Android|iPhone|iPad|iPod|Mobile/i.test(ua);
+        const isNarrow = Math.min(window.innerWidth || 0, window.innerHeight || 0) <= 700;
+        if (isMobileUA || isNarrow) {
+            try { document.documentElement.classList.add('mobile'); } catch (e) {}
+        }
+    } catch (e) { /* ignore */ }
+}
+window.addEventListener('load', activateMobileIfNeeded);
+window.addEventListener('resize', () => { try { activateMobileIfNeeded(); } catch (e) {} });
+
 const dropArea = document.getElementById('upload_section');
 if (dropArea) {
     dropArea.addEventListener('dragover', (event) => { event.preventDefault(); dropArea.classList.add('dragging'); });
@@ -374,8 +392,8 @@ if (fileInput) {
 
                                         // One predict per chapter: pass single chapter
                                         const result = await ejecutarTTS(ebook, [chap], {
-                                            serverUrl: 'http://127.0.0.1:7860',
-                                            statusBase: 'http://127.0.0.1:7860',
+                                            serverUrl: GRADIO_BASE,
+                                            statusBase: GRADIO_BASE,
                                             referenceAudioDataUrl: referenceDataUrl,
                                             // default example audio served from the ListenBook folder
                                             referenceAudioUrl: (function(){
