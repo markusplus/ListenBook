@@ -455,85 +455,60 @@ if (fileInput) {
                                                     try { chapterName = chap.titulo || chap.title || chapterName; } catch(e){}
 
                                                     try {
-                                                        // Retry loop for /gradio_finalize to handle transient network errors
-                                                        const finalizeUrl = 'http://127.0.0.1:3002/gradio_finalize';
-                                                            // include chapter order (numero) so server can name files with order
-                                                            const chapterOrder = (chap && (chap.numero || chap.number)) ? (chap.numero || chap.number) : (ci + 1);
-                                                            const finalizeBody = JSON.stringify({ deleteDirPath: path0, targetPath: path1, bookName: bookTitleRaw, chapterName: chapterName, chapterOrder: chapterOrder, baseUrl: 'http://127.0.0.1:7860' });
-                                                        const maxFinalizeAttempts = 3;
-                                                        let finalResp = null;
-                                                        for (let fa = 1; fa <= maxFinalizeAttempts; fa++) {
-                                                            try {
-                                                                const controllerF = new AbortController();
-                                                                // per-attempt timeout so fetch doesn't hang indefinitely
-                                                                const attemptTimeoutMs = 30 * 1000; // 30s
-                                                                const attemptTo = setTimeout(() => { try { controllerF.abort(); } catch (e) {} }, attemptTimeoutMs);
-                                                                finalResp = await fetch(finalizeUrl, {
-                                                                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                                                    body: finalizeBody,
-                                                                    signal: controllerF.signal,
-                                                                    mode: 'cors'
-                                                                });
-                                                                clearTimeout(attemptTo);
-                                                                // if we get a response (even non-ok), stop retrying
-                                                                break;
-                                                            } catch (errFinal) {
-                                                                console.warn(`[UI] gradio_finalize attempt ${fa} failed:`, errFinal && errFinal.message ? errFinal.message : errFinal);
-                                                                // If the page is being auto-reloaded by a dev server, in-flight fetches
-                                                                // will be aborted and produce 'Failed to fetch'. In that case try a
-                                                                // fire-and-forget sendBeacon so the finalize request still reaches
-                                                                // the proxy even if the page reloads.
+                                                        // Instead of moving the file into a permanent outputs folder on the server,
+                                                        // trigger a direct download from the proxy which will stream the file and
+                                                        // delete it on the server after the transfer completes. This avoids leaving
+                                                        // permanent copies on the host machine.
+                                                        try {
+                                                            // Build a default safe filename in the format:
+                                                            // Titulo_Del_Libro_Nombre_Capitulo_XX_YYYYMMDD.wav
+                                                            // Create TitleCase concatenated tokens (no separators) for book and chapter
+                                                            function makeTitleConcat(s) {
                                                                 try {
-                                                                    if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
-                                                                        try {
-                                                                            const blob = new Blob([finalizeBody], { type: 'application/json' });
-                                                                            const beaconOk = navigator.sendBeacon(finalizeUrl, blob);
-                                                                            console.log('[UI] gradio_finalize via sendBeacon:', beaconOk ? 'sent' : 'failed');
-                                                                            // Give the proxy a moment to move files, then refresh outputs
-                                                                            await new Promise(r => setTimeout(r, 1200));
-                                                                            await fetchAndShowOutputsDir();
-                                                                            // stop retrying since we've attempted sendBeacon fallback
-                                                                            finalResp = null;
-                                                                            break;
-                                                                        } catch (beErr) {
-                                                                            console.warn('[UI] sendBeacon finalize failed', beErr);
+                                                                    const tokenRe = /[\p{L}\p{N}]+/gu;
+                                                                    const tokens = Array.from(String(s || '').matchAll(tokenRe)).map(m => m[0]);
+                                                                    const joined = tokens.map(t => t.charAt(0).toUpperCase() + t.slice(1).toLowerCase()).join('');
+                                                                    return joined || String(s || '').replace(/[^A-Za-z0-9]/g,'');
+                                                                } catch (e) { return String(s || '').replace(/[^A-Za-z0-9]/g,''); }
+                                                            }
+                                                            const bookSafePart = makeTitleConcat(bookTitleRaw || 'Libro');
+                                                            const chapterSafePart = makeTitleConcat(chapterName || ('Capitulo' + (ci+1)));
+                                                            // Determine chapter order: prefer explicit chap.numero/number (absolute position in book), fallback to loop index
+                                                            const chapterOrder = (chap && (chap.numero || chap.number)) ? (chap.numero || chap.number) : (function(){
+                                                                try {
+                                                                    if (typeof allCaps !== 'undefined' && Array.isArray(allCaps)) {
+                                                                        const list = allCaps;
+                                                                        const titleA = (chap && (chap.titulo || chap.title) ? (chap.titulo || chap.title).toString().trim() : null);
+                                                                        if (titleA) {
+                                                                            const idx = list.findIndex(c => {
+                                                                                try { return (c && (c.titulo || c.title) ? (c.titulo || c.title).toString().trim() : '') === titleA; } catch (e) { return false; }
+                                                                            });
+                                                                            if (idx >= 0) return idx + 1;
                                                                         }
                                                                     }
-                                                                } catch (beaconCatch) { /* ignore */ }
-                                                                // small backoff before retrying
-                                                                if (fa < maxFinalizeAttempts) await new Promise(r => setTimeout(r, 500 * fa));
-                                                                else {
-                                                                    console.error('[UI] gradio_finalize all attempts failed', errFinal);
-                                                                    finalResp = null;
-                                                                }
-                                                            }
-                                                        }
+                                                                } catch (e) {}
+                                                                return (ci + 1);
+                                                            })();
+                                                            const orderPart = String(chapterOrder); // no zero-padding per request
+                                                            const fecha = (new Date()).toISOString().slice(0,10).replace(/-/g,'');
+                                                            const suggested = `${bookSafePart}_${chapterSafePart}_${orderPart}_${fecha}.wav`;
 
-                                                        if (finalResp) {
-                                                            // Defensive parsing: some proxy responses may not be JSON
-                                                            let fj = null;
-                                                            try {
-                                                                const bodyText = await finalResp.text().catch(() => null);
-                                                                if (bodyText) {
-                                                                    try { fj = JSON.parse(bodyText); } catch (e) { fj = null; console.warn('gradio_finalize returned non-JSON body'); }
-                                                                }
-                                                            } catch (e) { fj = null; }
-
-                                                            if (finalResp.ok) {
-                                                                const finalUrl = (fj && fj.ok && (fj.outputsUrl || fj.url)) ? (fj.outputsUrl || fj.url) : null;
-                                                                if (finalUrl) {
-                                                                    addDownloadLink(finalUrl, fj && fj.filename ? fj.filename : f1.filename);
-                                                                } else {
-                                                                    try { await fetchAndShowOutputsDir(); } catch (e) { /* ignore */ }
-                                                                }
-                                                            } else {
-                                                                // not ok: show outputs dir for recovery (and possibly log parsed body)
-                                                                console.warn('gradio_finalize returned non-ok status', finalResp.status, fj);
-                                                                try { await fetchAndShowOutputsDir(); } catch (e) { /* ignore */ }
-                                                            }
-                                                        } else {
-                                                            // all finalize attempts failed: refresh outputs dir to recover and continue
-                                                            try { await fetchAndShowOutputsDir(); } catch (e) { /* ignore */ }
+                                                            const proxyDownload = 'http://127.0.0.1:3002/proxy_download?path=' + encodeURIComponent(path1) + '&suggestName=' + encodeURIComponent(suggested);
+                                                            // Create a temporary anchor and click it so the browser opens the Save dialog
+                                                            const a = document.createElement('a');
+                                                            a.href = proxyDownload;
+                                                            // Suggest a filename to the browser (also provided to proxy)
+                                                            a.download = suggested;
+                                                            a.style.display = 'none';
+                                                            document.body.appendChild(a);
+                                                            a.click();
+                                                            setTimeout(() => { try { document.body.removeChild(a); } catch (e) {} }, 1000);
+                                                            // give the proxy a moment to clean up and refresh outputs listing
+                                                            await new Promise(r => setTimeout(r, 1000));
+                                                            try { await fetchAndShowOutputsDir(); } catch (e) {}
+                                                        } catch (e) {
+                                                            console.error('download trigger failed', e);
+                                                            try { await fetchAndShowOutputsDir(); } catch (e) {}
                                                         }
                                                     } catch (e) { console.error('finalize error', e); try { await fetchAndShowOutputsDir(); } catch (e2) {} }
                                                 } else if (files && files.length === 1) {
