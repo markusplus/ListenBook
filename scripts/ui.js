@@ -25,7 +25,8 @@ export function showChapterSelectionModal(allChapters, excluded, bookTitleRaw) {
                 const cap = tokens.map(t => t.charAt(0).toUpperCase() + t.slice(1).toLowerCase()).join('');
                 const safeBook = cap || String(bookTitleRaw).replace(/[^A-Za-z0-9]/g, '_');
                 const outputsDir = `D:\\TTS\\outputs\\${safeBook}`;
-                const proxy = 'http://127.0.0.1:3002/gradio_outputs?dir=' + encodeURIComponent(outputsDir);
+                const proxyBase = (typeof PROXY_BASE !== 'undefined') ? PROXY_BASE : (window && window.PROXY_BASE) ? window.PROXY_BASE : 'http://127.0.0.1:3002';
+                const proxy = proxyBase + '/gradio_outputs?dir=' + encodeURIComponent(outputsDir);
                 const resp = await fetch(proxy);
                 if (resp && resp.ok) {
                     const j = await resp.json().catch(() => null);

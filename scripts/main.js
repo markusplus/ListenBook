@@ -7,6 +7,14 @@ import { ejecutarTTS } from './ttsProcess.js';
 const GRADIO_HOST = '192.168.1.131';
 const GRADIO_PORT = 7860;
 const GRADIO_BASE = `http://${GRADIO_HOST}:${GRADIO_PORT}`;
+// proxy runs on port 3002 by default
+const PROXY_PORT = 3002;
+const PROXY_BASE = `http://${GRADIO_HOST}:${PROXY_PORT}`;
+// bridge (legacy local bridge) runs on port 3001 by default — expose so other modules can use it
+const BRIDGE_PORT = 3001;
+const BRIDGE_BASE = `http://${GRADIO_HOST}:${BRIDGE_PORT}`;
+// expose to other modules that may read window.PROXY_BASE / window.GRADIO_BASE / window.BRIDGE_BASE
+try { window.GRADIO_BASE = GRADIO_BASE; window.PROXY_BASE = PROXY_BASE; window.BRIDGE_BASE = BRIDGE_BASE; } catch (e) {}
 
 // Mobile detection and activation: add 'mobile' class to <html> when accessed from a smartphone or narrow viewport
 function activateMobileIfNeeded() {
@@ -235,7 +243,7 @@ function exportProgressFile(safeBook) {
 // Debug capture / send
 // -------------------------
 const ENABLE_DEBUG_CAPTURE = true; // flip to false to disable
-const DEBUG_ENDPOINT = 'http://127.0.0.1:3002/debug_event';
+const DEBUG_ENDPOINT = PROXY_BASE + '/debug_event';
 const debugPending = [];
 
 async function sendDebugEvent(evt) {
@@ -402,7 +410,7 @@ if (fileInput) {
                                                     return new URL('default_audios/esp_default/narrador_esp.wav', window.location.href).toString();
                                                 } catch(e) { return '/default_audios/esp_default/narrador_esp.wav'; }
                                             })(),
-                                            proxyGradioCallUrl: 'http://127.0.0.1:3002/gradio_call',
+                                            proxyGradioCallUrl: PROXY_BASE + '/gradio_call',
                                             clientTimeout: 0,
                                             pollInterval: 1500,
                                             timeout: 1000 * 60 * 10,
@@ -493,7 +501,7 @@ if (fileInput) {
                                                             const fecha = (new Date()).toISOString().slice(0,10).replace(/-/g,'');
                                                             const suggested = `${bookSafePart}_${chapterSafePart}_${orderPart}_${fecha}.wav`;
 
-                                                            const proxyDownload = 'http://127.0.0.1:3002/proxy_download?path=' + encodeURIComponent(path1) + '&suggestName=' + encodeURIComponent(suggested);
+                                                            const proxyDownload = PROXY_BASE + '/proxy_download?path=' + encodeURIComponent(path1) + '&suggestName=' + encodeURIComponent(suggested);
                                                             // Create a temporary anchor and click it so the browser opens the Save dialog
                                                             const a = document.createElement('a');
                                                             a.href = proxyDownload;
@@ -860,13 +868,13 @@ function extractFilesFromResult(obj) {
     const results = [];
     const seen = new Set();
     function normalizeUrl(u) {
-        if (!u) return u;
-        if (typeof u !== 'string') u = String(u);
-        if (u.startsWith('http')) return u;
-        if (u.startsWith('/')) return 'http://127.0.0.1:7860' + u;
-        if (u.startsWith('file=')) return 'http://127.0.0.1:7860/' + u;
-        // windows path like C:\... -> expose via gradio file= prefix
-        if (/^[A-Za-z]:\\/.test(u)) return 'http://127.0.0.1:7860/file=' + encodeURIComponent(u);
+    if (!u) return u;
+    if (typeof u !== 'string') u = String(u);
+    if (u.startsWith('http')) return u;
+    if (u.startsWith('/')) return GRADIO_BASE + u;
+    if (u.startsWith('file=')) return GRADIO_BASE + '/' + u;
+    // windows path like C:\... -> expose via gradio file= prefix
+    if (/^[A-Za-z]:\\/.test(u)) return GRADIO_BASE + '/file=' + encodeURIComponent(u);
         return u;
     }
     function walk(x) {
@@ -891,7 +899,7 @@ function extractFilesFromResult(obj) {
 // Fetch list of generated outputs from the local proxy and add them to downloads
 async function fetchAndShowGeneratedOutputs() {
     try {
-        const proxy = 'http://127.0.0.1:3002/gradio_outputs';
+        const proxy = PROXY_BASE + '/gradio_outputs';
         const resp = await fetch(proxy);
         if (!resp.ok) return console.warn('gradio_outputs request failed', resp.status);
         const j = await resp.json().catch(() => null);
@@ -906,12 +914,12 @@ async function fetchAndShowGeneratedOutputs() {
 async function fetchAndShowOutputsDir() {
     try {
         const outputsDir = 'D:\\TTS\\outputs';
-        const proxy = 'http://127.0.0.1:3002/gradio_outputs?dir=' + encodeURIComponent(outputsDir);
+    const proxy = PROXY_BASE + '/gradio_outputs?dir=' + encodeURIComponent(outputsDir);
         const resp = await fetch(proxy);
         if (!resp.ok) return; // no outputs or proxy not available
         const j = await resp.json().catch(() => null);
         if (!j || !Array.isArray(j.files) || !j.dir) return;
-        const baseProxy = 'http://127.0.0.1:3002/outputs';
+    const baseProxy = PROXY_BASE + '/outputs';
         j.files.forEach(f => {
             try {
                 // compute relative path inside outputs dir

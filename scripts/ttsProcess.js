@@ -4,9 +4,10 @@ export async function ejecutarTTS(ebook, chapters, options) {
     void ebook;
     void chapters;
     void options;
-    // prefer explicit serverUrl, otherwise default to the local bridge
-    const serverUrl = options && options.serverUrl ? options.serverUrl : 'http://127.0.0.1:3001/generate';
-    const statusBase = options && options.statusBase ? options.statusBase : 'http://127.0.0.1:3001';
+    // prefer explicit serverUrl, otherwise default to the local bridge (use window.BRIDGE_BASE when available)
+    const _defaultBridge = (typeof BRIDGE_BASE !== 'undefined') ? BRIDGE_BASE : (window && window.BRIDGE_BASE) ? window.BRIDGE_BASE : 'http://127.0.0.1:3001';
+    const serverUrl = options && options.serverUrl ? options.serverUrl : (_defaultBridge.replace(/\/$/, '') + '/generate');
+    const statusBase = options && options.statusBase ? options.statusBase : _defaultBridge.replace(/\/$/, '');
     const pollInterval = options && typeof options.pollInterval === 'number' ? options.pollInterval : 1500;
     const timeout = options && typeof options.timeout === 'number' ? options.timeout : (1000 * 60 * 5);
     const onProgress = options && typeof options.onProgress === 'function' ? options.onProgress : () => {};
