@@ -2,19 +2,23 @@ import { archivoSubido, setTitle, setAuthor, showCover, addDownloadLink, clearDo
 import { showProcessing, closeProcessing, showChapterSelectionModal } from './ui.js';
 import { createProgressWidget, updateProgressWidget, removeProgressWidget } from './dom.js';
 import { Ebook, extraerCapitulos } from './ebook.js';
-import { ejecutarTTS } from './ttsProcess.js';
+import { ejecutarTTS } from './ttsProcess.js?v=11';
 
-const GRADIO_HOST = '192.168.1.131';
-const GRADIO_PORT = 7860;
-const GRADIO_BASE = `http://${GRADIO_HOST}:${GRADIO_PORT}`;
+const COMFYUI_HOST = (typeof window !== 'undefined' && window.location && window.location.hostname)
+    ? window.location.hostname
+    : '127.0.0.1';
+const COMFYUI_PORT = 8188;
+const COMFYUI_BASE = `http://${COMFYUI_HOST}:${COMFYUI_PORT}`;
+// Kept as aliases for legacy download/debug helpers below.
+const GRADIO_BASE = COMFYUI_BASE;
 // proxy runs on port 3002 by default
 const PROXY_PORT = 3002;
-const PROXY_BASE = `http://${GRADIO_HOST}:${PROXY_PORT}`;
+const PROXY_BASE = `http://${COMFYUI_HOST}:${PROXY_PORT}`;
 // bridge (legacy local bridge) runs on port 3001 by default — expose so other modules can use it
 const BRIDGE_PORT = 3001;
-const BRIDGE_BASE = `http://${GRADIO_HOST}:${BRIDGE_PORT}`;
+const BRIDGE_BASE = `http://${COMFYUI_HOST}:${BRIDGE_PORT}`;
 // expose to other modules that may read window.PROXY_BASE / window.GRADIO_BASE / window.BRIDGE_BASE
-try { window.GRADIO_BASE = GRADIO_BASE; window.PROXY_BASE = PROXY_BASE; window.BRIDGE_BASE = BRIDGE_BASE; } catch (e) {}
+try { window.COMFYUI_BASE = COMFYUI_BASE; window.GRADIO_BASE = GRADIO_BASE; window.PROXY_BASE = PROXY_BASE; window.BRIDGE_BASE = BRIDGE_BASE; } catch (e) {}
 
 // Mobile detection and activation: add 'mobile' class to <html> when accessed from a smartphone or narrow viewport
 function activateMobileIfNeeded() {
@@ -379,29 +383,13 @@ if (fileInput) {
                                     try {
                                         // Setup per-chapter progress widget
                                         try {
-                                            const BASE_SEC_PER_50 = 0.92; // seconds per 50 chars (estimate)
-                                            const textForLength = ((chap.contenido || chap.text || chap.content) || (chap.titulo || chap.title) || '');
-                                            const approxPromptLength = (textForLength || '').length || 0;
-                                            const units = Math.max(1, Math.ceil(approxPromptLength / 50));
-                                            const estimatedSeconds = units * BASE_SEC_PER_50;
-                                            let elapsedSeconds = 0;
                                             createProgressWidget();
-                                            updateProgressWidget({ percent: 0, label: `Estimado: ${estimatedSeconds}s — Iniciando capítulo ${ci+1}/${seleccionados.length}` });
-                                            const progressStart = Date.now();
-                                            const progressInterval = setInterval(() => {
-                                                elapsedSeconds = Math.floor((Date.now() - progressStart) / 1000);
-                                                let pct = estimatedSeconds > 0 ? (elapsedSeconds / estimatedSeconds) * 100 : 0;
-                                                if (pct > 99) pct = 99;
-                                                updateProgressWidget({ percent: pct, label: `Cap ${ci+1}/${seleccionados.length} · Est: ${estimatedSeconds}s · ${elapsedSeconds}s` });
-                                            }, 1000);
-                                            window.__tts_progress_interval = progressInterval;
-                                            window.__tts_progress_meta = { estimatedSeconds, progressStart };
+                                            updateProgressWidget({ percent: 0, label: `Cap ${ci+1}/${seleccionados.length} · Esperando el progreso de ComfyUI...` });
                                         } catch (e) { console.warn('progress widget init failed', e); }
 
                                         // One predict per chapter: pass single chapter
                                         const result = await ejecutarTTS(ebook, [chap], {
-                                            serverUrl: GRADIO_BASE,
-                                            statusBase: GRADIO_BASE,
+                                            comfyuiBase: COMFYUI_BASE,
                                             referenceAudioDataUrl: referenceDataUrl,
                                             // default example audio served from the ListenBook folder
                                             referenceAudioUrl: (function(){
@@ -410,17 +398,29 @@ if (fileInput) {
                                                     return new URL('default_audios/esp_default/narrador_esp.wav', window.location.href).toString();
                                                 } catch(e) { return '/default_audios/esp_default/narrador_esp.wav'; }
                                             })(),
-                                            proxyGradioCallUrl: PROXY_BASE + '/gradio_call',
                                             clientTimeout: 0,
                                             pollInterval: 1500,
                                             timeout: 1000 * 60 * 10,
                                             onProgress: (status) => {
                                                 try{
+                                                    if (typeof status.percent === 'number') {
+                                                        const eta = Number.isFinite(status.etaSeconds)
+                                                            ? (status.etaSeconds < 60
+                                                                ? `${Math.ceil(status.etaSeconds)} s`
+                                                                : `${Math.floor(status.etaSeconds / 60)} min ${Math.ceil(status.etaSeconds % 60)} s`)
+                                                            : 'calculando...';
+                                                        updateProgressWidget({
+                                                            percent: status.percent,
+                                                            label: `Cap ${ci+1}/${seleccionados.length} · Restante aprox.: ${eta}`
+                                                        });
+                                                    }
                                                     const el = document.getElementById('tts-progress');
                                                     if (el) {
                                                         let html = '';
-                                                        if (status.jobId) html += `<div>Job: ${status.jobId}</div>`;
+                                                        if (status.promptId) html += `<div>ComfyUI: ${status.promptId}</div>`;
                                                         if (status.status) html += `<div>Estado: ${status.status}</div>`;
+                                                        if (Number.isFinite(status.percent)) html += `<div>Progreso: ${Math.round(status.percent)}%</div>`;
+                                                        if (Number.isFinite(status.etaSeconds)) html += `<div>Tiempo restante aprox.: ${Math.ceil(status.etaSeconds)} s</div>`;
                                                         if (status.diagnostics && status.diagnostics.length) html += `<div>Diagnostics: ${status.diagnostics.length} items</div>`;
                                                         if (status.files && status.files.length) html += `<div>Archivos generados: ${status.files.length}</div>`;
                                                         el.innerHTML = html;
@@ -444,9 +444,9 @@ if (fileInput) {
                                             const files = extractFilesFromResult(normalized || {});
                                             console.log('[UI] extracted files for chapter', ci, files);
                                             try {
-                                                if (files && files.length >= 2) {
+                                                if (files && files.length >= 1) {
                                                     const f0 = files[0];
-                                                    const f1 = files[1];
+                                                    const f1 = files[files.length - 1];
                                                     function rawPathFromFileObj(f) {
                                                         if (!f) return null;
                                                         if (f.path) return f.path;
@@ -469,7 +469,7 @@ if (fileInput) {
                                                         // permanent copies on the host machine.
                                                         try {
                                                             // Build a default safe filename in the format:
-                                                            // Titulo_Del_Libro_Nombre_Capitulo_XX_YYYYMMDD.wav
+                                                            // Titulo_Del_Libro_Nombre_Capitulo_XX_YYYYMMDD.mp3
                                                             // Create TitleCase concatenated tokens (no separators) for book and chapter
                                                             function makeTitleConcat(s) {
                                                                 try {
@@ -499,9 +499,11 @@ if (fileInput) {
                                                             })();
                                                             const orderPart = String(chapterOrder); // no zero-padding per request
                                                             const fecha = (new Date()).toISOString().slice(0,10).replace(/-/g,'');
-                                                            const suggested = `${bookSafePart}_${chapterSafePart}_${orderPart}_${fecha}.wav`;
+                                                            const suggested = `${bookSafePart}_${chapterSafePart}_${orderPart}_${fecha}.mp3`;
 
-                                                            const proxyDownload = PROXY_BASE + '/proxy_download?path=' + encodeURIComponent(path1) + '&suggestName=' + encodeURIComponent(suggested);
+                                                            const proxyDownload = (f1 && f1.url && /^https?:\/\//i.test(f1.url))
+                                                                ? f1.url
+                                                                : PROXY_BASE + '/proxy_download?path=' + encodeURIComponent(path1) + '&suggestName=' + encodeURIComponent(suggested);
                                                             // Create a temporary anchor and click it so the browser opens the Save dialog
                                                             const a = document.createElement('a');
                                                             a.href = proxyDownload;
