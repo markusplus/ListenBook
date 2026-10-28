@@ -117,7 +117,7 @@
           }
       
     </script>
-    <link rel="stylesheet" href="css/listenbook.css?v=4">
+    <link rel="stylesheet" href="css/listenbook.css?v=9">
     <link rel="icon" type="image/png" href="resources/logo1_crop.png">
     <title>
       ListenBook · Atelier de Audio Narrativo
@@ -126,7 +126,7 @@
   <body>
     <!-- Cabecera Luminosa e Idéntica a la Pantalla Clara -->
     <header class="fixed top-0 w-full z-50 bg-[#FDFBF7]/90 backdrop-blur-xl border-b border-[#E8E2D8] shadow-sm">
-      <div class="h-20 max-w-7xl mx-auto px-6 lg:px-12 flex items-center justify-between gap-6">
+      <div class="h-20 max-w-7xl mx-auto px-6 lg:px-12 flex items-center justify-between gap-6 relative">
         <div class="flex items-center gap-4 shrink-0">
           <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-[#8E4E00] to-[#3E2317] flex items-center justify-center text-white shadow-sm">
             <span class="material-symbols-outlined text-[22px]">menu_book</span>
@@ -135,20 +135,12 @@
             <span class="font-headline-sm text-headline-sm text-[#2C1810] leading-none tracking-tight">ListenBook</span><span class="font-label-sm text-label-sm text-[#82746F] italic font-serif mt-1">Atelier de Audio Narrativo</span>
           </div>
         </div>
-        <nav class="hidden md:flex items-center gap-1 bg-[#F4F0EA] p-1.5 rounded-xl border border-[#E4DDD3]" data-active-classes="bg-white text-[#2C1810] font-bold rounded-lg shadow-sm">
+        <nav class="hidden md:flex items-center gap-1 bg-[#F4F0EA] p-1.5 rounded-xl border border-[#E4DDD3] listenbook-main-nav" data-active-classes="bg-white text-[#2C1810] font-bold rounded-lg shadow-sm">
           <a class="px-4 py-2 text-[#504440] hover:text-[#2C1810] transition-colors font-label-md text-label-md" data-path="convertir-epub" href="#">Convertir EPUB</a><a class="px-4 py-2 bg-white text-[#2C1810] font-semibold rounded-lg shadow-xs transition-colors font-label-md text-label-md" id="logo_descargas" data-path="mis-audiolibros" href="#">Mis Audiolibros</a><a class="px-4 py-2 text-[#504440] hover:text-[#2C1810] transition-colors font-label-md text-label-md" data-path="voces-y-modelos" href="#">Voces y Modelos</a><a class="px-4 py-2 text-[#504440] hover:text-[#2C1810] transition-colors font-label-md text-label-md" data-path="configuracion" href="#">Configuración</a>
         </nav>
-        <div class="flex items-center gap-4 shrink-0">
-          <div class="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#F4EFE8] border border-[#E2D9CD]">
-            <span class="w-2 h-2 rounded-full bg-[#8E4E00] animate-pulse"></span><span class="font-label-sm text-label-sm text-[#504440]">Motor Neural:<strong class="text-[#2C1810] font-semibold">Activo</strong></span>
-          </div>
-          <div class="flex items-center gap-2 pl-2">
-            <div class="hidden sm:flex flex-col text-right">
-              <span class="font-label-md text-label-md text-[#2C1810] font-medium leading-tight">Estudio Narrativo</span><span class="font-label-sm text-label-sm text-[#8E4E00] leading-tight">Pro Plan</span>
-            </div>
-            <div class="w-8 h-8 rounded-full bg-gradient-to-br from-[#8E4E00] to-[#5F3F32] text-white flex items-center justify-center shadow-xs">
-              <span class="material-symbols-outlined text-[18px]">person</span>
-            </div>
+        <div class="flex items-center shrink-0">
+          <div class="w-8 h-8 rounded-full bg-gradient-to-br from-[#8E4E00] to-[#5F3F32] text-white flex items-center justify-center shadow-xs" aria-label="Perfil">
+            <span class="material-symbols-outlined text-[18px]">person</span>
           </div>
         </div>
       </div>
@@ -170,25 +162,13 @@
         </div>
       </div>
       <div class="relative z-10 flex flex-col w-full">
-        <!-- Hero Editorial Header -->
-        <section class="w-full px-6 lg:px-12 pt-10 pb-4 max-w-7xl mx-auto flex flex-col items-center text-center">
-          <!-- Quick action pill row -->
-          <div class="flex flex-wrap items-center justify-center gap-4 mt-7">
-            <button class="flex items-center gap-2 px-5 py-3 rounded-lg bg-[#8E4E00] hover:bg-[#723E00] text-white font-label-lg text-label-lg shadow-sm transition-all duration-200" id="btn-trigger-upload" type="button">
-              <span class="material-symbols-outlined text-[20px]">library_add</span><span class="">Cargar Tomo EPUB</span>
-            </button>
-            <div class="hidden sm:flex items-center gap-2 text-[#82746F] font-body-sm text-body-sm pl-2">
-              <span class="material-symbols-outlined text-[18px]">drag_indicator</span><span class="">O arrastra cualquier archivo sobre los libros</span>
-            </div>
-          </div>
-        </section>
         <!-- Interactive Area Container (Shelf vs 3D Tome) -->
         <section class="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 pb-10 overflow-hidden relative library-viewport">
           <!-- VIEW 1: Modern Architectural Bookshelf (Fondo claro con micropuntos y balda roble pálido) -->
           <div class="w-full flex flex-col items-center transition-all duration-700" id="bookshelf-stage">
             <div class="w-full max-w-5xl relative mt-4 rounded-2xl p-6 sm:p-8 md:p-10 border border-[#E8E2D8] shadow-[0_16px_40px_rgba(44,24,16,0.06)] bookshelf-stage-backdrop library-frame">
               <!-- Encabezado sutil de la hornacina contemporánea -->
-              <div class="w-full flex items-center justify-between pb-4 mb-2 border-b border-[#E5DDCF]/70">
+              <div class="w-full flex items-center justify-between pb-4 mb-2 border-b border-[#E5DDCF]/70 library-frame-heading">
                 <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#82746F]">
                   <span class="w-1.5 h-1.5 rounded-full bg-[#8E4E00]"></span><span class="">Colección Activa • Estante Principal</span>
                 </div>
@@ -585,20 +565,6 @@
             <!-- Main Workspace Container -->
             <div class="max-w-7xl mx-auto px-6 lg:px-12 pt-8">
               <!-- Top Processing Pipeline Breadcrumb / Status Dock -->
-              <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-surface-container-lowest/80 backdrop-blur-md p-4 sm:px-6 rounded-2xl shadow-sm mb-10 border border-surface-container">
-                <div class="flex items-center gap-3">
-                  <span class="flex h-3 w-3 relative"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-secondary opacity-75"></span><span class="relative inline-flex rounded-full h-3 w-3 bg-secondary"></span></span><span class="font-label-md text-label-md text-primary font-semibold tracking-wide uppercase">Manuscrito Analizado con Éxito</span><span class="text-outline-variant">•</span><span class="font-body-sm text-body-sm text-on-surface-variant font-medium">EPUB 3.2 validado por el motor sintáctico</span>
-                </div>
-                <div class="flex items-center gap-3">
-                  <span class="font-label-sm text-label-sm text-on-surface-variant bg-surface-container-high px-3 py-1 rounded-full flex items-center gap-1.5"><span class="material-symbols-outlined text-[15px] text-secondary">verified</span>Codificación UTF-8</span>
-                  <button class="flex items-center gap-1.5 font-label-md text-label-md text-on-surface-variant hover:text-primary transition-colors px-3 py-1 rounded-lg hover:bg-surface-container" id="reuploadBtn">
-                    <span class="material-symbols-outlined text-[16px]">swap_horiz</span>Cambiar archivo
-                  </button>
-                  <button class="flex items-center gap-1.5 font-label-md text-label-md text-on-surface-variant hover:text-error transition-colors px-3 py-1 rounded-lg hover:bg-surface-container" id="delete_loaded_book" type="button">
-                    <span class="material-symbols-outlined text-[16px]">delete</span>Eliminar tomo
-                  </button>
-                </div>
-              </div>
               <!-- Main Workspace: Left (3D Realistic Interactive Book Centerpiece) | Right (Literary Metrics & Audio Production) -->
               <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-start">
                 <!-- Left: Interactive 3D Realistic Book Component (7 cols) -->
@@ -944,7 +910,7 @@
                         <span class="font-label-sm text-[11px] uppercase tracking-wide">Capítulos</span><span class="material-symbols-outlined text-[16px] text-secondary">format_list_numbered</span>
                       </div>
                       <div class="mt-2">
-                        <span class="font-headline-sm text-headline-sm text-primary font-serif font-bold" id="totalChaptersBadge">12</span><span id="generatedChaptersInline" class="font-body-sm text-[13px] text-secondary font-semibold ml-1">(0)</span><span class="font-body-sm text-[11px] text-on-surface-variant block">Segmentos</span>
+                        <span class="font-headline-sm text-headline-sm text-primary font-serif font-bold" id="totalChaptersBadge">12</span><span id="generatedChaptersInline" class="font-body-sm text-[13px] text-secondary font-semibold ml-1">(0)</span>
                       </div>
                     </div>
                     <!-- Stat 2: Duración de audios generados -->
@@ -953,7 +919,7 @@
                         <span class="font-label-sm text-[11px] uppercase tracking-wide">Duración</span><span class="material-symbols-outlined text-[16px] text-secondary">schedule</span>
                       </div>
                       <div class="mt-2">
-                        <span class="font-headline-sm text-headline-sm text-primary font-serif font-bold" id="totalDurationBadge">0m 00s</span><span class="font-body-sm text-[11px] text-on-surface-variant block">Audios generados</span>
+                        <span class="font-headline-sm text-headline-sm text-primary font-serif font-bold" id="totalDurationBadge">0m 00s</span>
                       </div>
                     </div>
                     <!-- Stat 3: Tamaño Archivo -->
@@ -962,79 +928,18 @@
                         <span class="font-label-sm text-[11px] uppercase tracking-wide">Archivo</span><span class="material-symbols-outlined text-[16px] text-secondary">attachment</span>
                       </div>
                       <div class="mt-2">
-                        <span class="font-headline-sm text-headline-sm text-primary font-serif font-bold">4.2 MB</span><span class="font-body-sm text-[11px] text-on-surface-variant block">EPUB Íntegro</span>
+                        <span class="font-headline-sm text-headline-sm text-primary font-serif font-bold">4.2 MB</span>
                       </div>
                     </div>
-                    <!-- Stat 4: Capítulos generados -->
-                    <div class="bg-surface-container-lowest p-3 rounded-xl flex flex-col justify-between shadow-xs">
+                    <!-- Stat 4: Eliminar libro -->
+                    <button class="bg-[#FFF1EF] hover:bg-[#FFE4E0] border border-[#F0C7C0] p-3 rounded-xl flex flex-col justify-between shadow-xs text-left transition-colors" id="delete_loaded_book_stat" type="button">
                       <div class="flex items-center justify-between text-on-surface-variant">
-                        <span class="font-label-sm text-[11px] uppercase tracking-wide">Generados</span><span class="material-symbols-outlined text-[16px] text-secondary">check_circle</span>
+                        <span class="font-label-sm text-[11px] uppercase tracking-wide text-[#A23D33]">Eliminar</span><span class="material-symbols-outlined text-[16px] text-[#A23D33]">delete</span>
                       </div>
-                      <div class="mt-2">
-                        <span class="font-headline-sm text-headline-sm text-primary font-serif font-bold" id="generatedChaptersBadge">0</span><span class="font-body-sm text-[11px] text-on-surface-variant block">Audios listos</span>
+                      <div class="mt-2 flex items-center gap-1.5">
+                        <span class="material-symbols-outlined text-[20px] text-[#A23D33]">delete_forever</span>
                       </div>
-                    </div>
-                  </div>
-                  <!-- Voice Selector & Preview Card -->
-                  <div class="bg-surface-container-lowest/90 backdrop-blur-md p-4 sm:p-5 rounded-2xl shadow-sm border border-surface-container flex flex-col gap-3">
-                    <div class="flex items-center justify-between">
-                      <div class="flex items-center gap-2.5">
-                        <div class="w-9 h-9 rounded-xl bg-tertiary-container flex items-center justify-center text-on-tertiary">
-                          <span class="material-symbols-outlined text-[20px]">mic</span>
-                        </div>
-                        <div class="flex flex-col">
-                          <span class="font-label-sm text-[11px] text-on-surface-variant uppercase tracking-wider">Voz Configurada</span><span class="font-title-md text-title-md text-primary leading-snug">Mateo • Narrador Épico</span>
-                        </div>
-                      </div>
-                      <span class="bg-secondary-fixed text-on-secondary-fixed px-2.5 py-0.5 rounded-full font-label-sm text-label-sm font-semibold">Neural HQ</span>
-                    </div>
-                    <!-- Waveform & Miniature Preview Player -->
-                    <div class="bg-surface-container-low rounded-xl p-2.5 flex items-center gap-3">
-                      <button class="w-9 h-9 rounded-full bg-primary hover:bg-primary-container text-on-primary flex items-center justify-center transition-transform active:scale-95 shadow-sm shrink-0 cursor-pointer" id="previewVoiceBtn">
-                        <span class="material-symbols-outlined text-[20px]" id="playIcon">play_arrow</span>
-                      </button>
-                      <!-- Synthesized audio waveform graphic -->
-                      <div class="flex-1 flex items-center gap-1 h-7 px-1 overflow-hidden" id="waveformBars">
-                        <div class="w-1 bg-secondary rounded-full h-2 transition-all duration-300">
-                        </div>
-                        <div class="w-1 bg-secondary rounded-full h-4 transition-all duration-300">
-                        </div>
-                        <div class="w-1 bg-secondary rounded-full h-6 transition-all duration-300">
-                        </div>
-                        <div class="w-1 bg-secondary rounded-full h-3 transition-all duration-300">
-                        </div>
-                        <div class="w-1 bg-secondary rounded-full h-5 transition-all duration-300">
-                        </div>
-                        <div class="w-1 bg-secondary rounded-full h-7 transition-all duration-300">
-                        </div>
-                        <div class="w-1 bg-secondary rounded-full h-4 transition-all duration-300">
-                        </div>
-                        <div class="w-1 bg-secondary rounded-full h-2 transition-all duration-300">
-                        </div>
-                        <div class="w-1 bg-secondary rounded-full h-6 transition-all duration-300">
-                        </div>
-                        <div class="w-1 bg-secondary rounded-full h-5 transition-all duration-300">
-                        </div>
-                        <div class="w-1 bg-secondary rounded-full h-3 transition-all duration-300">
-                        </div>
-                        <div class="w-1 bg-secondary rounded-full h-5 transition-all duration-300">
-                        </div>
-                        <div class="w-1 bg-secondary rounded-full h-7 transition-all duration-300">
-                        </div>
-                        <div class="w-1 bg-secondary rounded-full h-4 transition-all duration-300">
-                        </div>
-                        <div class="w-1 bg-secondary rounded-full h-2 transition-all duration-300">
-                        </div>
-                        <div class="w-1 bg-secondary rounded-full h-4 transition-all duration-300">
-                        </div>
-                        <div class="w-1 bg-secondary rounded-full h-3 transition-all duration-300">
-                        </div>
-                      </div>
-                      <span class="font-label-sm text-label-sm text-on-surface-variant font-mono tabular-nums">0:14</span>
-                    </div>
-                    <div class="flex items-center justify-between pt-0.5">
-                      <span class="font-body-sm text-[12px] text-on-surface-variant italic">Tono solemne, timbre cálido para ficción histórica.</span><a class="font-label-md text-label-md text-secondary hover:text-primary transition-colors font-medium" href="#">Cambiar voz</a>
-                    </div>
+                    </button>
                   </div>
                   <!-- Primary Dynamic Synthesis Action Card -->
                   <div class="bg-gradient-to-br from-tertiary-container via-primary-container to-primary p-6 rounded-3xl shadow-xl text-on-tertiary flex flex-col gap-5 border border-amber-900/30">
@@ -1109,6 +1014,33 @@
         </div>
       </div>
     </section>
+    <div aria-hidden="true" class="fixed inset-0 z-[80] hidden items-center justify-center bg-black/35 p-4 backdrop-blur-sm" id="new-book-source-modal">
+      <div aria-labelledby="new-book-source-title" aria-modal="true" class="w-full max-w-2xl rounded-2xl border border-[#E5DDD0] bg-[#FDF9F3] p-6 shadow-2xl" role="dialog">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-wider text-[#8E4E00]">Nuevo tomo</p>
+            <h2 class="mt-1 font-serif text-2xl font-semibold text-[#2C1810]" id="new-book-source-title">¿De dónde quieres importar el EPUB?</h2>
+          </div>
+          <button aria-label="Cerrar" class="rounded-lg p-2 text-[#82746F] hover:bg-[#F0E8DD]" id="new-book-source-close" type="button"><span class="material-symbols-outlined">close</span></button>
+        </div>
+        <div class="mt-6 grid gap-3 sm:grid-cols-2" id="new-book-source-options">
+          <button class="flex items-center gap-3 rounded-xl border border-[#E0D8CB] bg-white p-4 text-left transition hover:border-[#8E4E00] hover:shadow-sm" id="new-book-local-option" type="button">
+            <span class="material-symbols-outlined text-[#8E4E00]">upload_file</span><span><strong class="block text-[#2C1810]">Archivo del dispositivo</strong><small class="text-[#82746F]">Selecciona un EPUB local.</small></span>
+          </button>
+          <button class="flex items-center gap-3 rounded-xl border border-[#E0D8CB] bg-white p-4 text-left transition hover:border-[#8E4E00] hover:shadow-sm" id="new-book-biblioses-option" type="button">
+            <span class="material-symbols-outlined text-[#8E4E00]">library_books</span><span><strong class="block text-[#2C1810]">Biblioses</strong><small class="text-[#82746F]">Busca un libro en Calibre.</small></span>
+          </button>
+        </div>
+        <div class="mt-5 hidden" id="biblioses-browser">
+          <div class="flex gap-2">
+            <input class="min-w-0 flex-1 rounded-lg border border-[#DCCFC1] bg-white px-3 py-2 text-sm text-[#2C1810] outline-none focus:border-[#8E4E00]" id="biblioses-search-input" placeholder="Título o autor" type="search">
+            <button class="rounded-lg bg-[#8E4E00] px-4 py-2 text-sm font-semibold text-white hover:bg-[#723E00]" id="biblioses-search-button" type="button">Buscar</button>
+          </div>
+          <p class="mt-3 hidden text-sm text-[#82746F]" id="biblioses-status"></p>
+          <div class="mt-3 max-h-80 space-y-2 overflow-y-auto" id="biblioses-results"></div>
+        </div>
+      </div>
+    </div>
     <footer class="w-full bg-[#FAF7F2] border-t border-[#E8E2D8] py-10">
       <div class="max-w-7xl mx-auto px-6 lg:px-12 flex flex-col md:flex-row items-center justify-between gap-6">
         <div class="flex items-center gap-3">
@@ -1126,9 +1058,9 @@
     </script>
     <script type="module" src="scripts/book3d.js?v=1">
     </script>
-    <script type="module" src="scripts/shelf.js?v=1">
+    <script type="module" src="scripts/shelf.js?v=2">
     </script>
-    <script type="module" src="scripts/main.js?v=50">
+    <script type="module" src="scripts/main.js?v=52">
     </script>
   </body>
 </html>
