@@ -525,12 +525,45 @@ export function renderPrototypeChapterSelection(allChapters = [], excluded = [])
 
     const pages = spreads.flatMap(spread => Array.from(spread.children).filter(child => child.classList.contains('parchment-pattern'))
         .map(page => page.querySelector('.custom-scroll')).filter(Boolean));
+    const bookTitle = String(window.__listenbookEbook?.titulo || document.getElementById('titulo_display')?.textContent || '').replace(/\s+/g, ' ').trim();
+    const bookAuthor = String(window.__listenbookEbook?.autor || document.getElementById('autor_display')?.textContent || '').replace(/\s+/g, ' ').trim();
+    const updatePageMetadata = () => {
+        pages.forEach((pageContent, pageIndex) => {
+            const page = pageContent.parentElement;
+            const header = page?.querySelector('[data-listenbook-page-header="true"]');
+            const footer = page?.querySelector('[data-listenbook-page-footer="true"]');
+            const rangeStart = pageIndex * rowsPerPage + 1;
+            const rangeEnd = Math.min(chapters.length, rangeStart + rowsPerPage - 1);
+            const chapterRange = chapters.length ? `Cap. ${rangeStart} - ${rangeEnd}` : 'Sin capítulos';
+            const pageLabel = `Pág. ${pageIndex + 1}`;
+            const textSpans = container => Array.from(container?.querySelectorAll('span') || []).filter(span => {
+                const text = span.textContent.trim();
+                return text && !span.classList.contains('material-symbols-outlined');
+            });
+            const headerSpans = textSpans(header);
+            const footerSpans = textSpans(footer);
+            const lastHeaderSpan = headerSpans[headerSpans.length - 1];
+            const lastFooterSpan = footerSpans[footerSpans.length - 1];
+            if (pageIndex % 2 === 0) {
+                if (headerSpans[0]) headerSpans[0].textContent = (bookAuthor || bookTitle || 'ListenBook').toUpperCase();
+                if (lastHeaderSpan) lastHeaderSpan.textContent = chapterRange;
+                if (footerSpans[0]) footerSpans[0].textContent = bookTitle || 'ListenBook';
+                if (lastFooterSpan) lastFooterSpan.textContent = pageLabel;
+            } else {
+                if (headerSpans[0]) headerSpans[0].textContent = chapterRange;
+                if (lastHeaderSpan) lastHeaderSpan.textContent = (bookTitle || 'ListenBook').toUpperCase();
+                if (footerSpans[0]) footerSpans[0].textContent = pageLabel;
+                if (lastFooterSpan) lastFooterSpan.textContent = bookAuthor || bookTitle || 'ListenBook';
+            }
+        });
+    };
     pages.forEach((page, pageIndex) => {
         page.parentElement.style.display = pageIndex < pageCount ? 'flex' : 'none';
         page.querySelectorAll('label').forEach(row => {
             if (row.classList.contains('chapter-row') || row.querySelector('.chapter-cb')) row.remove();
         });
     });
+    updatePageMetadata();
 
     chapters.forEach((chapter, index) => {
         const page = pages[Math.floor(index / rowsPerPage)];
@@ -546,7 +579,9 @@ export function renderPrototypeChapterSelection(allChapters = [], excluded = [])
         const isExcluded = excludedKeys.has(title);
         checkbox.dataset.index = String(index);
         checkbox.dataset.duration = String(duration);
-        checkbox.checked = !isExcluded;
+        // Al abrir un EPUB, la selección empieza siempre vacía. Los capítulos
+        // se marcan después de forma explícita con "Marcar todos" o a mano.
+        checkbox.checked = false;
         checkbox.disabled = false;
         if (spans[0]) {
             spans[0].textContent = title;
@@ -678,7 +713,7 @@ function showPrototypeChapterDrawer(allChapters, excluded) {
             checkbox.dataset.index = String(index);
             const generatedRow = document.querySelector(`#bookOpenVolume [data-chapter-index="${index}"].chapter-row-generated`);
             const alreadyGenerated = Boolean(generatedRow);
-            checkbox.checked = visibleSelection.has(index) ? visibleSelection.get(index) : !excludedKeys.has(title);
+            checkbox.checked = visibleSelection.has(index) ? visibleSelection.get(index) : false;
             const label = document.createElement('span');
             label.className = 'font-label-md text-label-md text-[#2C1810] font-semibold';
             label.textContent = title;
@@ -822,7 +857,7 @@ export function showChapterSelectionModal(allChapters, excluded, bookTitleRaw) {
             // decide if substantive by using the central helper (ensures consistent behavior)
             const substantive = hasNarration(c);
 
-            const checked = (isExcluded || !substantive) ? '' : 'checked';
+            const checked = '';
             const escTitle = title.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
             // mark already-generated chapters based on filename tokens + order
             let generatedNote = '';
