@@ -38,6 +38,14 @@
         if (fileInput) fileInput.click();
       }
 
+      function openNewBookChooserOrFilePicker() {
+        if (typeof window.openNewBookSourceChooser === 'function') {
+          window.openNewBookSourceChooser();
+          return;
+        }
+        openNativeFilePicker();
+      }
+
       // Switch between shelf & 3D tome views
       function show3DStage() {
         is3DViewActive = true;
@@ -70,13 +78,13 @@
       }
 
       // File selection events
-      if (btnTriggerUpload) btnTriggerUpload.addEventListener('click', openNativeFilePicker);
+      if (btnTriggerUpload) btnTriggerUpload.addEventListener('click', openNewBookChooserOrFilePicker);
       if (btnShelfAdd) {
-        btnShelfAdd.addEventListener('click', openNativeFilePicker);
+        btnShelfAdd.addEventListener('click', openNewBookChooserOrFilePicker);
         btnShelfAdd.addEventListener('keydown', event => {
           if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault();
-            openNativeFilePicker();
+            openNewBookChooserOrFilePicker();
           }
         });
       }

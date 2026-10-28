@@ -4,9 +4,10 @@ import os
 import re
 import shutil
 import tempfile
+import xml.etree.ElementTree as ET
 from urllib.error import HTTPError, URLError
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, quote, unquote, urlencode, urlsplit
+from urllib.parse import parse_qs, quote, unquote, urlencode, urljoin, urlsplit
 from urllib.request import Request, urlopen
 
 
@@ -17,6 +18,7 @@ LIBRARY_FILE = os.path.join(SERVER_DATA_DIR, 'library.json')
 GENERATED_AUDIO_FILE = os.path.join(SERVER_DATA_DIR, 'generated-audio.json')
 COMFYUI_VIEW_BASE = os.environ.get('LISTENBOOK_COMFYUI_VIEW', 'http://127.0.0.1:8188/view')
 COMFYUI_API_BASE = os.environ.get('LISTENBOOK_COMFYUI_API', 'http://127.0.0.1:8188')
+BIBLIOSES_OPDS_URL = os.environ.get('LISTENBOOK_BIBLIOSES_OPDS', 'http://200.234.229.26:8080/opds')
 os.makedirs(BOOKS_DIR, exist_ok=True)
 
 
@@ -60,6 +62,51 @@ def audio_proxy_target(path):
     return f'{COMFYUI_VIEW_BASE}?{params}', query.get('download', ['0'])[0] == '1'
 
 
+def _xml_text(element, name):
+    child = next((item for item in list(element) if item.tag.rsplit('}', 1)[-1] == name), None)
+    return (child.text or '').strip() if child is not None else ''
+
+
+def parse_opds_feed(payload, feed_url):
+    root = ET.fromstring(payload)
+    books = []
+    for entry in root.iter():
+        if entry.tag.rsplit('}', 1)[-1] != 'entry':
+            continue
+        links = []
+        for link in list(entry):
+            if link.tag.rsplit('}', 1)[-1] != 'link' or not link.get('href'):
+                continue
+            links.append({
+                'href': urljoin(feed_url, link.get('href')),
+                'rel': link.get('rel', ''),
+                'type': link.get('type', '')
+            })
+        acquisition = next((link for link in links if 'acquisition' in link['rel'] or link['type'] in ('application/epub+zip', 'application/epub')), None)
+        if not acquisition:
+            continue
+        image = next((link for link in links if link['rel'] in ('http://opds-spec.org/image', 'http://opds-spec.org/image/thumbnail')), None)
+        author = ''
+        for child in list(entry):
+            if child.tag.rsplit('}', 1)[-1] == 'author':
+                author = _xml_text(child, 'name')
+                break
+        books.append({
+            'id': _xml_text(entry, 'id') or acquisition['href'],
+            'title': _xml_text(entry, 'title') or 'Sin título',
+            'author': author,
+            'coverUrl': image['href'] if image else '',
+            'downloadUrl': acquisition['href'],
+        })
+    return books
+
+
+def biblioses_url_allowed(value):
+    requested = urlsplit(value)
+    configured = urlsplit(BIBLIOSES_OPDS_URL)
+    return requested.scheme in ('http', 'https') and requested.netloc == configured.netloc
+
+
 class ListenBookHandler(SimpleHTTPRequestHandler):
     def _send_json(self, value, status=200):
         payload = json.dumps(value, ensure_ascii=False).encode('utf-8')
@@ -96,6 +143,41 @@ class ListenBookHandler(SimpleHTTPRequestHandler):
             self._send_json(read_json_file(GENERATED_AUDIO_FILE, {}))
             return True
         return False
+
+    def _handle_biblioses_get(self):
+        query = parse_qs(urlsplit(self.path).query)
+        search = (query.get('q', [''])[0] or '').strip()
+        # Calibre Content Server 5.x exposes search as /opds/search/<query>.
+        # The trailing slash with no query asks the server for its searchable
+        # acquisition feed instead of the root navigation catalog.
+        feed_url = f'{BIBLIOSES_OPDS_URL.rstrip("/")}/search/{quote(search, safe="")}'
+        try:
+            response = urlopen(Request(feed_url, headers={'Accept': 'application/atom+xml'}), timeout=30)
+            payload = response.read()
+            books = parse_opds_feed(payload, feed_url)
+            self._send_json({'books': books, 'query': search})
+        except (HTTPError, URLError, ET.ParseError, OSError) as error:
+            self.send_error(502, f'No se pudo consultar Biblioses: {error}')
+
+    def _handle_biblioses_download(self):
+        requested_url = parse_qs(urlsplit(self.path).query).get('url', [''])[0]
+        if not biblioses_url_allowed(requested_url):
+            self.send_error(400, 'URL de Biblioses no válida')
+            return
+        try:
+            response = urlopen(Request(requested_url, headers={'Accept': 'application/epub+zip'}), timeout=120)
+            payload = response.read()
+            filename = os.path.basename(unquote(urlsplit(requested_url).path)) or 'biblioses-book.epub'
+            if not filename.lower().endswith('.epub'):
+                filename = 'biblioses-book.epub'
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/epub+zip')
+            self.send_header('Content-Length', str(len(payload)))
+            self.send_header('Content-Disposition', f"attachment; filename*=UTF-8''{quote(filename)}")
+            self.end_headers()
+            self.wfile.write(payload)
+        except (HTTPError, URLError, OSError) as error:
+            self.send_error(502, f'No se pudo descargar el EPUB de Biblioses: {error}')
 
     def _read_request_json(self):
         length = int(self.headers.get('Content-Length', '0'))
@@ -277,6 +359,12 @@ class ListenBookHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         path = urlsplit(self.path).path
+        if path == '/api/biblioses/search':
+            self._handle_biblioses_get()
+            return
+        if path == '/api/biblioses/download':
+            self._handle_biblioses_download()
+            return
         if path.startswith('/api/comfy/'):
             self._proxy_comfyui('GET', self.path)
             return

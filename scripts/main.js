@@ -140,6 +140,131 @@ const reuploadButton = document.getElementById('reupload_button');
 const coverActionHint = document.getElementById('cover_action_hint');
 const backToMainButton = document.getElementById('back_to_main');
 const deleteLoadedBookButton = document.getElementById('delete_loaded_book');
+const deleteLoadedBookStatButton = document.getElementById('delete_loaded_book_stat');
+
+// Importación de tomos: archivo local o catálogo OPDS de Biblioses.
+const newBookSourceModal = document.getElementById('new-book-source-modal');
+const newBookSourceOptions = document.getElementById('new-book-source-options');
+const newBookSourceClose = document.getElementById('new-book-source-close');
+const newBookLocalOption = document.getElementById('new-book-local-option');
+const newBookBibliosesOption = document.getElementById('new-book-biblioses-option');
+const bibliosesBrowser = document.getElementById('biblioses-browser');
+const bibliosesSearchInput = document.getElementById('biblioses-search-input');
+const bibliosesSearchButton = document.getElementById('biblioses-search-button');
+const bibliosesStatus = document.getElementById('biblioses-status');
+const bibliosesResults = document.getElementById('biblioses-results');
+
+function closeNewBookSourceChooser() {
+    if (!newBookSourceModal) return;
+    newBookSourceModal.classList.add('hidden');
+    newBookSourceModal.classList.remove('flex');
+    newBookSourceModal.setAttribute('aria-hidden', 'true');
+}
+
+function showBibliosesStatus(message, visible = true) {
+    if (!bibliosesStatus) return;
+    bibliosesStatus.textContent = message;
+    bibliosesStatus.classList.toggle('hidden', !visible);
+}
+
+function openNewBookSourceChooser() {
+    if (!newBookSourceModal) return fileInput?.click();
+    newBookSourceModal.classList.remove('hidden');
+    newBookSourceModal.classList.add('flex');
+    newBookSourceModal.setAttribute('aria-hidden', 'false');
+    newBookSourceOptions?.classList.remove('hidden');
+    bibliosesBrowser?.classList.add('hidden');
+    if (bibliosesResults) bibliosesResults.replaceChildren();
+    showBibliosesStatus('', false);
+}
+
+window.openNewBookSourceChooser = openNewBookSourceChooser;
+newBookSourceClose?.addEventListener('click', closeNewBookSourceChooser);
+newBookSourceModal?.addEventListener('click', event => {
+    if (event.target === newBookSourceModal) closeNewBookSourceChooser();
+});
+newBookLocalOption?.addEventListener('click', () => {
+    closeNewBookSourceChooser();
+    fileInput?.click();
+});
+
+async function searchBiblioses() {
+    if (!bibliosesResults) return;
+    const query = String(bibliosesSearchInput?.value || '').trim();
+    bibliosesResults.replaceChildren();
+    showBibliosesStatus('Consultando Biblioses…');
+    try {
+        const response = await fetch(`/api/biblioses/search?q=${encodeURIComponent(query)}`, { cache: 'no-store' });
+        if (!response.ok) throw new Error(`Biblioses respondió ${response.status}`);
+        const data = await response.json();
+        const books = Array.isArray(data.books) ? data.books : [];
+        showBibliosesStatus(books.length ? `${books.length} libros disponibles` : 'No se encontraron libros.', true);
+        books.forEach(book => {
+            const row = document.createElement('button');
+            row.type = 'button';
+            row.className = 'flex w-full items-center gap-3 rounded-xl border border-[#E8E0D6] bg-white p-3 text-left hover:border-[#8E4E00] hover:bg-[#FFF9F2]';
+            const cover = document.createElement('div');
+            cover.className = 'flex h-14 w-10 shrink-0 items-center justify-center overflow-hidden rounded bg-[#F0E8DD] text-[#8E4E00]';
+            if (book.coverUrl) {
+                const image = document.createElement('img');
+                image.src = book.coverUrl;
+                image.alt = '';
+                image.className = 'h-full w-full object-cover';
+                cover.appendChild(image);
+            } else {
+                cover.textContent = 'EPUB';
+            }
+            const text = document.createElement('span');
+            text.className = 'min-w-0 flex-1';
+            const title = document.createElement('strong');
+            title.className = 'block truncate text-sm text-[#2C1810]';
+            title.textContent = book.title || 'Sin título';
+            const author = document.createElement('small');
+            author.className = 'block truncate text-xs text-[#82746F]';
+            author.textContent = book.author || 'Autor desconocido';
+            text.append(title, author);
+            const icon = document.createElement('span');
+            icon.className = 'material-symbols-outlined text-[#8E4E00]';
+            icon.textContent = 'download';
+            row.append(cover, text, icon);
+            row.addEventListener('click', () => importBibliosesBook(book));
+            bibliosesResults.appendChild(row);
+        });
+    } catch (error) {
+        console.error('[Biblioses] No se pudo consultar el catálogo:', error);
+        showBibliosesStatus('No se pudo consultar Biblioses. Revisa el terminal de ListenBook.', true);
+    }
+}
+
+async function importBibliosesBook(book) {
+    if (!book?.downloadUrl || !fileInput) return;
+    showBibliosesStatus(`Descargando «${book.title || 'EPUB'}»…`);
+    try {
+        const response = await fetch(`/api/biblioses/download?url=${encodeURIComponent(book.downloadUrl)}`);
+        if (!response.ok) throw new Error(`Descarga respondió ${response.status}`);
+        const blob = await response.blob();
+        const safeName = String(book.title || 'biblioses-book').replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'biblioses-book';
+        const file = new File([blob], `${safeName}.epub`, { type: 'application/epub+zip' });
+        const transfer = new DataTransfer();
+        transfer.items.add(file);
+        fileInput.files = transfer.files;
+        closeNewBookSourceChooser();
+        fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+    } catch (error) {
+        console.error('[Biblioses] No se pudo importar el EPUB:', error);
+        showBibliosesStatus('No se pudo descargar el EPUB seleccionado.', true);
+    }
+}
+
+newBookBibliosesOption?.addEventListener('click', () => {
+    newBookSourceOptions?.classList.add('hidden');
+    bibliosesBrowser?.classList.remove('hidden');
+    searchBiblioses();
+});
+bibliosesSearchButton?.addEventListener('click', searchBiblioses);
+bibliosesSearchInput?.addEventListener('keydown', event => {
+    if (event.key === 'Enter') searchBiblioses();
+});
 
 // Biblioteca local: metadatos en localStorage y el EPUB en IndexedDB.
 const BOOKS_STORAGE_KEY = 'listenbook.library.books.v1';
@@ -527,6 +652,31 @@ async function deleteStoredBook(id) {
     if (window.__listenbookCurrentBookId === id) { window.__listenbookCurrentBookId = null; window.__listenbookEbook = null; window.__listenbookChapterData = null; }
 }
 
+async function confirmDeleteLoadedBook() {
+    const id = window.__listenbookCurrentBookId;
+    const record = readStoredBooks().find(book => book.id === id);
+    if (!record) return;
+    let confirmed = false;
+    if (typeof Swal !== 'undefined') {
+        const result = await Swal.fire({
+            icon: 'warning',
+            title: '¿Eliminar este tomo?',
+            text: `Se eliminará «${record.title || record.name || 'este libro'}» y sus datos guardados de ListenBook.`,
+            showCancelButton: true,
+            confirmButtonText: 'Eliminar tomo',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#A23D33',
+            cancelButtonColor: '#82746F'
+        });
+        confirmed = result.isConfirmed;
+    } else {
+        confirmed = window.confirm(`¿Eliminar «${record.title || record.name || 'este libro'}»?`);
+    }
+    if (!confirmed) return;
+    await deleteStoredBook(id);
+    showShelfView();
+}
+
 async function openStoredBook(record) {
     if (!fileInput || !record) return;
     const stored = await readBookFile(record.id);
@@ -605,7 +755,10 @@ if (reuploadButton && fileInput) {
     reuploadButton.addEventListener('click', () => fileInput.click());
 }
 if (deleteLoadedBookButton) {
-    deleteLoadedBookButton.addEventListener('click', async () => { await deleteStoredBook(window.__listenbookCurrentBookId); showShelfView(); });
+    deleteLoadedBookButton.addEventListener('click', confirmDeleteLoadedBook);
+}
+if (deleteLoadedBookStatButton) {
+    deleteLoadedBookStatButton.addEventListener('click', confirmDeleteLoadedBook);
 }
 if (coverActionHint) {
     coverActionHint.addEventListener('click', () => {

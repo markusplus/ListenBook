@@ -45,15 +45,35 @@
   max-width: 100% !important;
 }
 
+/* El menú queda centrado respecto a la ventana, no respecto al espacio
+ * restante entre el logotipo y el icono de usuario. */
+.listenbook-main-nav {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
 .library-frame {
   max-width: 1360px !important;
-  min-height: 650px;
+  min-height: 560px;
   padding: clamp(1.5rem, 3vw, 3.5rem) !important;
+  padding-top: clamp(0.5rem, 0.9vw, 1rem) !important;
   container-type: inline-size;
 }
 
+/* Acerca los lomos a la parte superior del marco sin cambiar su escala. */
+.library-frame-heading {
+  padding-bottom: 0.35rem !important;
+  margin-bottom: 0 !important;
+}
+
+/* El libro abierto queda más cerca de la barra de controles superior. */
+#stageContainer {
+  padding-top: 0.2rem !important;
+}
+
 .library-rack {
-  min-height: 520px !important;
+  min-height: 440px !important;
 }
 
 .library-rack .realistic-shelf-cluster {
@@ -110,11 +130,11 @@
 
 @media (max-width: 900px) {
   .library-frame {
-    min-height: 560px;
+    min-height: 520px;
   }
 
   .library-rack {
-    min-height: 460px !important;
+    min-height: 420px !important;
   }
 }
 

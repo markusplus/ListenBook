@@ -59,6 +59,24 @@ Por ejemplo: `http://100.92.5.84:8080`.
 
 El puerto `8080` es ListenBook. El puerto `8188` es ComfyUI y no se utiliza como dirección principal de la aplicación.
 
+## Biblioteca Biblioses
+
+ListenBook consulta el catálogo OPDS de Calibre y no importa toda la biblioteca
+automáticamente. Al pulsar **Nuevo tomo**, se puede elegir entre un archivo del
+dispositivo o **Biblioses**. En Biblioses se busca y se descarga únicamente el
+EPUB seleccionado.
+
+La dirección configurada actualmente es:
+
+```text
+http://200.234.229.26:8080/opds
+```
+
+Se puede cambiar mediante la variable de entorno `LISTENBOOK_BIBLIOSES_OPDS`.
+El catálogo no requiere autenticación. La URL autenticada del servidor Calibre
+del puerto `88` queda disponible como alternativa si se configura un proxy o
+credenciales en el backend.
+
 ## Comunicación con ComfyUI
 
 Cuando se accede desde una dirección HTTP, el navegador envía las peticiones a ListenBook usando rutas del mismo origen:
