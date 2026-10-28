@@ -89,9 +89,21 @@ async function loadWorkflowSettings() {
     return workflowSettingsPromise;
 }
 
+function makeUuid() {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID();
+    }
+    // HTTP origins on a LAN/Tailscale connection may not expose
+    // crypto.randomUUID(). Keep the fallback valid for ComfyUI's prompt_id.
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, character => {
+        const random = Math.random() * 16 | 0;
+        const value = character === 'x' ? random : (random & 0x3 | 0x8);
+        return value.toString(16);
+    });
+}
+
 function makeClientId() {
-    if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
-    return `listenbook-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    return makeUuid();
 }
 
 function dataUrlToBlob(dataUrl) {
@@ -217,6 +229,10 @@ function outputUrl(base, audio) {
         subfolder: audio.subfolder || '',
         type: audio.type || 'output'
     });
+    if (typeof window !== 'undefined' && window.location && /^https?:$/.test(window.location.protocol)) {
+        params.set('download', '0');
+        return `${window.location.origin}/api/audio?${params.toString()}`;
+    }
     return `${base}/view?${params.toString()}`;
 }
 
@@ -248,6 +264,9 @@ function recordDuration(seconds) {
 
 function openProgressSocket(base, clientId, promptId, onProgress) {
     if (typeof WebSocket === 'undefined') return null;
+    // ListenBook proxies the ComfyUI HTTP API, but not WebSockets. Remote
+    // clients use the /history polling fallback instead.
+    if (/\/api\/comfy\/?$/.test(base)) return null;
     const wsBase = base.replace(/^http/i, 'ws');
     const socket = new WebSocket(`${wsBase}/ws?clientId=${encodeURIComponent(clientId)}`);
     const samples = [];
@@ -380,8 +399,11 @@ export async function ejecutarTTS(ebook, chapters, options) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt, client_id: clientId, prompt_id: promptId })
     });
-    const body = await response.json().catch(() => null);
+    const rawBody = await response.text().catch(() => '');
+    let body = null;
+    try { body = rawBody ? JSON.parse(rawBody) : null; } catch (error) { body = rawBody; }
     if (!response.ok || !body || !body.prompt_id) {
+        console.error('[ListenBook -> ComfyUI] Respuesta de /prompt:', response.status, body);
         throw new Error(`ComfyUI rechazó la petición (${response.status}): ${JSON.stringify(body)}`);
     }
     return waitForHistory(base, body.prompt_id, progressSocket, options);

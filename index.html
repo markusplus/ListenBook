@@ -1,88 +1,1134 @@
 <!DOCTYPE html>
 <html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <!-- CSS -->
-    <link rel="stylesheet" href="css/style.css">
-    <!-- Favicon -->
+  <head>
+    <meta charset="utf-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <meta content="web_standard" name="shell-type">
+    <link href="https://fonts.googleapis.com" rel="preconnect">
+    <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,400;1,600&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries">
+    </script>
+    <script id="tailwind-config">
+      
+          tailwind.config = {
+            darkMode: "class",
+            theme: {
+              extend: {
+                "colors": {
+                  "surface-dim": "#ddd9d4",
+                  "outline": "#82746f",
+                  "tertiary-fixed": "#ffdbcd",
+                  "on-primary-fixed-variant": "#5f3f32",
+                  "surface-variant": "#e6e2dc",
+                  "primary": "#260f05",
+                  "inverse-on-surface": "#f4f0ea",
+                  "inverse-surface": "#31302d",
+                  "error-container": "#ffdad6",
+                  "surface-bright": "#fdf9f3",
+                  "on-tertiary-container": "#b78671",
+                  "secondary-fixed-dim": "#ffb778",
+                  "on-tertiary-fixed": "#301306",
+                  "surface-container-high": "#ebe8e2",
+                  "on-background": "#1c1c18",
+                  "on-error": "#ffffff",
+                  "on-surface": "#1c1c18",
+                  "on-secondary": "#ffffff",
+                  "surface-container": "#f1ede7",
+                  "on-primary": "#ffffff",
+                  "on-primary-container": "#b08878",
+                  "outline-variant": "#d4c3bd",
+                  "secondary": "#8e4e00",
+                  "surface-tint": "#795648",
+                  "primary-fixed": "#ffdbcd",
+                  "secondary-container": "#fda95a",
+                  "secondary-fixed": "#ffdcc1",
+                  "on-tertiary": "#ffffff",
+                  "tertiary-fixed-dim": "#f1baa3",
+                  "on-error-container": "#93000a",
+                  "on-secondary-fixed-variant": "#6c3a00",
+                  "primary-fixed-dim": "#eabdab",
+                  "on-secondary-fixed": "#2e1500",
+                  "tertiary": "#290d02",
+                  "surface": "#fdf9f3",
+                  "on-surface-variant": "#504440",
+                  "tertiary-container": "#422112",
+                  "background": "#fdf9f3",
+                  "primary-container": "#3e2317",
+                  "on-secondary-container": "#723e00",
+                  "surface-container-low": "#f7f3ed",
+                  "surface-container-highest": "#e6e2dc",
+                  "on-tertiary-fixed-variant": "#643d2c",
+                  "inverse-primary": "#eabdab",
+                  "on-primary-fixed": "#2d150a",
+                  "error": "#ba1a1a",
+                  "surface-container-lowest": "#ffffff"
+                },
+                "borderRadius": {
+                  "DEFAULT": "0.25rem",
+                  "lg": "0.5rem",
+                  "xl": "0.75rem",
+                  "full": "9999px"
+                },
+                "spacing": {
+                  "gutter": "1.5rem",
+                  "space-xl": "2.5rem",
+                  "gutter-mobile": "1rem",
+                  "margin": "3rem",
+                  "space-sm": "0.5rem",
+                  "margin-mobile": "1.25rem",
+                  "space-xs": "0.25rem",
+                  "space-lg": "1.5rem",
+                  "space-md": "1rem"
+                },
+                "fontFamily": {
+                  "headline-lg-mobile": ["Playfair Display"],
+                  "body-md": ["Plus Jakarta Sans"],
+                  "display-lg-mobile": ["Playfair Display"],
+                  "label-lg": ["Plus Jakarta Sans"],
+                  "body-sm": ["Plus Jakarta Sans"],
+                  "title-md": ["Plus Jakarta Sans"],
+                  "headline-lg": ["Playfair Display"],
+                  "body-lg": ["Plus Jakarta Sans"],
+                  "label-md": ["Plus Jakarta Sans"],
+                  "headline-md": ["Playfair Display"],
+                  "label-sm": ["Plus Jakarta Sans"],
+                  "display-lg": ["Playfair Display"],
+                  "headline-sm": ["Playfair Display"]
+                },
+                "fontSize": {
+                  "headline-lg-mobile": ["24px", { "lineHeight": "32px", "fontWeight": "600" }],
+                  "body-md": ["14px", { "lineHeight": "22px", "fontWeight": "400" }],
+                  "display-lg-mobile": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                  "label-lg": ["14px", { "lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "600" }],
+                  "body-sm": ["12px", { "lineHeight": "18px", "fontWeight": "400" }],
+                  "title-md": ["16px", { "lineHeight": "24px", "fontWeight": "600" }],
+                  "headline-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                  "body-lg": ["16px", { "lineHeight": "26px", "fontWeight": "400" }],
+                  "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "600" }],
+                  "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "600" }],
+                  "label-sm": ["11px", { "lineHeight": "14px", "letterSpacing": "0.04em", "fontWeight": "500" }],
+                  "display-lg": ["48px", { "lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "600" }],
+                  "headline-sm": ["20px", { "lineHeight": "28px", "fontWeight": "500" }]
+                }
+              },
+            },
+          }
+      
+    </script>
+    <link rel="stylesheet" href="css/listenbook.css?v=4">
     <link rel="icon" type="image/png" href="resources/logo1_crop.png">
-    <title>ListenBook</title>
-</head>
-<body>
-    <header>
-        <a href="index.html" id="logo_container">
-            <img src="resources/logo1_crop.png" alt="ListenBook" id="logo">
-        </a>
-        <div id='header_container'>
-            <div class="titulo_drag">
-                <div class="titulo_subtitulo">
-                    <h1>ListenBook</h1>
-                    <p>Escucha tus libros favoritos</p>
-                    <img src="resources/descarga_logo.png" alt="descargas" id="logo_descargas">
-                </div>
-                <section id="upload_section">
-                    <h2>Sube tu archivo</h2>
-                    <form action="upload.php" method="post" enctype="multipart/form-data" class="form_subida">
-                        <input id="file-upload" type="file" name="file" multiple>
-                    </form>
-                    <input id="dir-upload" type="file" webkitdirectory directory multiple style="display:none" />
-                    <button id="dir-upload-btn" type="button" style="margin-top:8px; padding:6px 10px; font-size:0.9rem;">Subir carpeta</button>
-                </section>
-            </div>
-            <div class="display_item" style="display: none;" id="downloads_section">
-                <div style="display:flex; align-items:center; gap:8px;">
-                    <a id="back_to_main" href="index.html" title="Volver al inicio" style="display:inline-flex; align-items:center;">
-                        <!-- calendar with left-arrow icon -->
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                            <rect x="3" y="5" width="18" height="16" rx="2" stroke="white" stroke-width="1.2" fill="rgba(255,255,255,0.06)" />
-                            <path d="M15 12H9" stroke="white" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
-                            <path d="M11 10l-2 2 2 2" stroke="white" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
-                        </svg>
-                    </a>
-                    <h3 style="margin:0;">Descargas</h3>
-                </div>
-                <div>
-                    <p id="downloads_empty" style="color:#666">No hay audios generados aún.</p>
-                    <div id="downloads_list"></div>
-                </div>
-            </div>
+    <title>
+      ListenBook · Atelier de Audio Narrativo
+    </title>
+  </head>
+  <body>
+    <!-- Cabecera Luminosa e Idéntica a la Pantalla Clara -->
+    <header class="fixed top-0 w-full z-50 bg-[#FDFBF7]/90 backdrop-blur-xl border-b border-[#E8E2D8] shadow-sm">
+      <div class="h-20 max-w-7xl mx-auto px-6 lg:px-12 flex items-center justify-between gap-6">
+        <div class="flex items-center gap-4 shrink-0">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-[#8E4E00] to-[#3E2317] flex items-center justify-center text-white shadow-sm">
+            <span class="material-symbols-outlined text-[22px]">menu_book</span>
+          </div>
+          <div class="flex flex-col">
+            <span class="font-headline-sm text-headline-sm text-[#2C1810] leading-none tracking-tight">ListenBook</span><span class="font-label-sm text-label-sm text-[#82746F] italic font-serif mt-1">Atelier de Audio Narrativo</span>
+          </div>
         </div>
-        <div id="reproducir_section" class="section" style="display: none;">
-            <div id="reproducir_selector">
-                <h2 id="reproducir_titulo"></h2>
-                <img id="reproducir_cover" style="max-width: 200px; height: auto;"/>
+        <nav class="hidden md:flex items-center gap-1 bg-[#F4F0EA] p-1.5 rounded-xl border border-[#E4DDD3]" data-active-classes="bg-white text-[#2C1810] font-bold rounded-lg shadow-sm">
+          <a class="px-4 py-2 text-[#504440] hover:text-[#2C1810] transition-colors font-label-md text-label-md" data-path="convertir-epub" href="#">Convertir EPUB</a><a class="px-4 py-2 bg-white text-[#2C1810] font-semibold rounded-lg shadow-xs transition-colors font-label-md text-label-md" id="logo_descargas" data-path="mis-audiolibros" href="#">Mis Audiolibros</a><a class="px-4 py-2 text-[#504440] hover:text-[#2C1810] transition-colors font-label-md text-label-md" data-path="voces-y-modelos" href="#">Voces y Modelos</a><a class="px-4 py-2 text-[#504440] hover:text-[#2C1810] transition-colors font-label-md text-label-md" data-path="configuracion" href="#">Configuración</a>
+        </nav>
+        <div class="flex items-center gap-4 shrink-0">
+          <div class="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#F4EFE8] border border-[#E2D9CD]">
+            <span class="w-2 h-2 rounded-full bg-[#8E4E00] animate-pulse"></span><span class="font-label-sm text-label-sm text-[#504440]">Motor Neural:<strong class="text-[#2C1810] font-semibold">Activo</strong></span>
+          </div>
+          <div class="flex items-center gap-2 pl-2">
+            <div class="hidden sm:flex flex-col text-right">
+              <span class="font-label-md text-label-md text-[#2C1810] font-medium leading-tight">Estudio Narrativo</span><span class="font-label-sm text-label-sm text-[#8E4E00] leading-tight">Pro Plan</span>
             </div>
-            <div id="reproductor_display" style="display: none;">
-                <audio id="audio_player" controls>
-                    Your browser does not support the audio element.
-                </audio>
+            <div class="w-8 h-8 rounded-full bg-gradient-to-br from-[#8E4E00] to-[#5F3F32] text-white flex items-center justify-center shadow-xs">
+              <span class="material-symbols-outlined text-[18px]">person</span>
             </div>
+          </div>
         </div>
-        <div id="configuracion_section" class="section" style="display: none;">
-            <div id="configuracion">
-                <div class="display_item_portada">
-                    <div id="portada_display">
-                    </div>
-                </div>
-                <div class="display_item">
-                    <h3>Título</h3>
-                    <p id="titulo_display"></p>
-                </div>
-                <div class="display_item">
-                    <h3>Autor</h3>
-                    <p id="autor_display"></p>
-                </div>
-            </div>
-        </div>
-        <div class="login_registro">
-            <div style="display: none;">
-                <a href="login.php" class="botonGeneral">Iniciar sesión</a>
-                <a href="register.php" class="botonGeneral">Registrarse</a>
-            </div>
-        </div>
+      </div>
     </header>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script type="module" src="scripts/main.js?v=11"></script>
-</body>
+    <main id="header_container" class="w-full pt-20 bg-dots-pattern min-h-[calc(100vh-140px)] relative overflow-x-hidden">
+      <input accept=".epub" class="hidden" id="file-upload" type="file">
+      <!-- Drag-and-drop backdrop overlay (Claro y pulcro) -->
+      <div class="fixed inset-0 z-50 pointer-events-none opacity-0 transition-opacity duration-300 flex items-center justify-center bg-black/30 backdrop-blur-sm" id="drag-drop-curtain">
+        <div class="p-10 rounded-2xl bg-[#FFFFFF] border-2 border-dashed border-[#8E4E00]/60 shadow-2xl flex flex-col items-center max-w-md mx-4 text-center transform scale-95 transition-transform duration-300" id="drag-box-container">
+          <div class="w-16 h-16 rounded-full bg-[#FBF3EA] border border-[#E9D9C3] flex items-center justify-center text-[#8E4E00] mb-4 animate-bounce">
+            <span class="material-symbols-outlined text-4xl">auto_stories</span>
+          </div>
+          <h3 class="font-headline-md text-headline-md text-[#2C1810] mb-2 font-serif">
+            Suelta tu manuscrito en la estantería
+          </h3>
+          <p class="font-body-md text-body-md text-[#504440]">
+            Soporta volúmenes en formato EPUB y MOBI para apertura y encuadernación 3D inmediata.
+          </p>
+        </div>
+      </div>
+      <div class="relative z-10 flex flex-col w-full">
+        <!-- Hero Editorial Header -->
+        <section class="w-full px-6 lg:px-12 pt-10 pb-4 max-w-7xl mx-auto flex flex-col items-center text-center">
+          <!-- Quick action pill row -->
+          <div class="flex flex-wrap items-center justify-center gap-4 mt-7">
+            <button class="flex items-center gap-2 px-5 py-3 rounded-lg bg-[#8E4E00] hover:bg-[#723E00] text-white font-label-lg text-label-lg shadow-sm transition-all duration-200" id="btn-trigger-upload" type="button">
+              <span class="material-symbols-outlined text-[20px]">library_add</span><span class="">Cargar Tomo EPUB</span>
+            </button>
+            <div class="hidden sm:flex items-center gap-2 text-[#82746F] font-body-sm text-body-sm pl-2">
+              <span class="material-symbols-outlined text-[18px]">drag_indicator</span><span class="">O arrastra cualquier archivo sobre los libros</span>
+            </div>
+          </div>
+        </section>
+        <!-- Interactive Area Container (Shelf vs 3D Tome) -->
+        <section class="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 pb-10 overflow-hidden relative library-viewport">
+          <!-- VIEW 1: Modern Architectural Bookshelf (Fondo claro con micropuntos y balda roble pálido) -->
+          <div class="w-full flex flex-col items-center transition-all duration-700" id="bookshelf-stage">
+            <div class="w-full max-w-5xl relative mt-4 rounded-2xl p-6 sm:p-8 md:p-10 border border-[#E8E2D8] shadow-[0_16px_40px_rgba(44,24,16,0.06)] bookshelf-stage-backdrop library-frame">
+              <!-- Encabezado sutil de la hornacina contemporánea -->
+              <div class="w-full flex items-center justify-between pb-4 mb-2 border-b border-[#E5DDCF]/70">
+                <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#82746F]">
+                  <span class="w-1.5 h-1.5 rounded-full bg-[#8E4E00]"></span><span class="">Colección Activa • Estante Principal</span>
+                </div>
+                <span class="text-xs text-[#82746F]">5 Obras en formato editorial</span>
+              </div>
+              <!-- Dropzone Target: Shelf cavity with tightly packed books -->
+              <div class="w-full shelf-perspective-rack relative flex items-end justify-center min-h-[380px] md:min-h-[400px] pb-0 library-rack" id="shelf-dropzone-target">
+                <!-- Left Modern Architectural Bookend (Piedra caliza / roble nórdico sutil) -->
+                <div class="hidden sm:flex flex-col items-end justify-end mr-0 mb-0.5 select-none z-10 shelf-bookend shelf-bookend-left">
+                  <div class="w-3.5 md:w-4 h-40 md:h-48 bg-[#DDD5C7] rounded-l-md border-y border-l border-[#CBC0AF] shadow-sm relative flex items-center justify-center">
+                    <div class="w-1 h-14 bg-[#BDB09E] rounded-full opacity-60">
+                    </div>
+                  </div>
+                  <div class="w-7 md:w-8 h-2.5 bg-[#CBC0AF] rounded-l-xs shadow-xs">
+                  </div>
+                </div>
+                <!-- Realistic cluster: Tightly packed books touching each other with minimalist editorial jackets -->
+                <div class="realistic-shelf-cluster">
+                  <!-- Book 1: Las legiones malditas (Burdeos sobrio mate, franja limpia) -->
+                  <div class="tight-book group shelf-example shelf-example-legiones" data-book-id="legiones" title="Extraer y abrir 'Las legiones malditas'">
+                    <div class="tome-body shelf-tome-legiones w-13 sm:w-16 md:w-[70px] h-76 sm:h-84 md:h-[348px] rounded-t-[3px] flex flex-col justify-between py-4 px-2 relative overflow-hidden transition-all duration-300">
+                      <div class="w-full h-1 bg-[#F5ECE1]/40 rounded-full">
+                      </div>
+                      <div class="flex-1 flex flex-col items-center justify-center my-3 overflow-hidden">
+                        <span class="font-headline-sm text-[#F7F2EB] text-xs sm:text-[13px] tracking-widest uppercase [writing-mode:vertical-rl] rotate-180 font-serif drop-shadow-xs truncate">Las legiones malditas</span><span class="font-label-sm text-[#E2C7BE] text-[9px] [writing-mode:vertical-rl] rotate-180 uppercase tracking-wider mt-2.5">S. Posteguillo</span>
+                      </div>
+                      <div class="flex flex-col items-center gap-1.5">
+                        <span class="material-symbols-outlined text-[#F5ECE1]/70 text-xs">shield</span>
+                        <div class="w-5 h-0.5 bg-[#F5ECE1]/30 rounded-full">
+                        </div>
+                      </div>
+                    </div>
+                    <div class="absolute -top-8 left-1/2 -translate-x-1/2 text-[10px] font-label-sm font-semibold uppercase tracking-wider text-[#2C1810] px-2.5 py-0.5 rounded bg-white border border-[#E0D8CB] opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-sm">
+                      Extraer Tomo
+                    </div>
+                  </div>
+                  <!-- Book 2: Ficciones & El Aleph (Azul petróleo marino mate) -->
+                  <div class="tight-book group shelf-example shelf-example-borges" data-book-id="borges" title="Extraer y abrir 'Ficciones &amp; El Aleph'">
+                    <div class="tome-body shelf-tome-borges w-12 sm:w-14 md:w-[60px] h-70 sm:h-76 md:h-[314px] rounded-t-[3px] flex flex-col justify-between py-3.5 px-2 relative overflow-hidden transition-all duration-300">
+                      <div class="w-full h-1 bg-[#D8E4EE]/40 rounded-full">
+                      </div>
+                      <div class="flex-1 flex flex-col items-center justify-center my-2.5 overflow-hidden">
+                        <span class="font-headline-sm text-[#F0F5FA] text-xs sm:text-[12px] tracking-widest uppercase [writing-mode:vertical-rl] rotate-180 font-serif drop-shadow-xs truncate">Ficciones • Borges</span><span class="font-label-sm text-[#A9C3D6] text-[9px] [writing-mode:vertical-rl] rotate-180 uppercase tracking-wider mt-2">J. L. Borges</span>
+                      </div>
+                      <div class="flex flex-col items-center gap-1.5">
+                        <span class="material-symbols-outlined text-[#D8E4EE]/70 text-xs">all_inclusive</span>
+                        <div class="w-5 h-0.5 bg-[#D8E4EE]/30 rounded-full">
+                        </div>
+                      </div>
+                    </div>
+                    <div class="absolute -top-8 left-1/2 -translate-x-1/2 text-[10px] font-label-sm font-semibold uppercase tracking-wider text-[#2C1810] px-2.5 py-0.5 rounded bg-white border border-[#E0D8CB] opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-sm">
+                      Extraer Tomo
+                    </div>
+                  </div>
+                  <!-- Book 3: Cien años de soledad (Verde bosque mate sobrio) -->
+                  <div class="tight-book group shelf-example shelf-example-gabriel" data-book-id="gabriel" title="Extraer y abrir 'Cien años de soledad'">
+                    <div class="tome-body shelf-tome-gabriel w-14 sm:w-16 md:w-[72px] h-72 sm:h-80 md:h-[336px] rounded-t-[3px] flex flex-col justify-between py-4 px-2 relative overflow-hidden transition-all duration-300">
+                      <div class="w-full h-1 bg-[#E2ECE5]/40 rounded-full">
+                      </div>
+                      <div class="flex-1 flex flex-col items-center justify-center my-3 overflow-hidden">
+                        <span class="font-headline-sm text-[#F5FAF6] text-xs sm:text-[13px] tracking-widest uppercase [writing-mode:vertical-rl] rotate-180 font-serif drop-shadow-xs truncate">Cien años de soledad</span><span class="font-label-sm text-[#B7D4C2] text-[9px] [writing-mode:vertical-rl] rotate-180 uppercase tracking-wider mt-2.5">García Márquez</span>
+                      </div>
+                      <div class="flex flex-col items-center gap-1.5">
+                        <span class="material-symbols-outlined text-[#E2ECE5]/70 text-xs">eco</span>
+                        <div class="w-5 h-0.5 bg-[#E2ECE5]/30 rounded-full">
+                        </div>
+                      </div>
+                    </div>
+                    <div class="absolute -top-8 left-1/2 -translate-x-1/2 text-[10px] font-label-sm font-semibold uppercase tracking-wider text-[#2C1810] px-2.5 py-0.5 rounded bg-white border border-[#E0D8CB] opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-sm">
+                      Extraer Tomo
+                    </div>
+                  </div>
+                  <!-- Book 4: El viejo y el mar (Terracota suave / tabaco cálido mate) -->
+                  <div class="tight-book group shelf-example shelf-example-hemingway" data-book-id="hemingway" title="Extraer y abrir 'El viejo y el mar'">
+                    <div class="tome-body shelf-tome-hemingway w-11 sm:w-13 md:w-[56px] h-64 sm:h-70 md:h-[296px] rounded-t-[3px] flex flex-col justify-between py-3 px-2 relative overflow-hidden transition-all duration-300">
+                      <div class="w-full h-1 bg-[#F5ECE5]/40 rounded-full">
+                      </div>
+                      <div class="flex-1 flex flex-col items-center justify-center my-2 overflow-hidden">
+                        <span class="font-headline-sm text-[#FAF5F0] text-[11px] sm:text-xs tracking-wider uppercase [writing-mode:vertical-rl] rotate-180 font-serif drop-shadow-xs truncate">El viejo y el mar</span><span class="font-label-sm text-[#E2C7B7] text-[8px] [writing-mode:vertical-rl] rotate-180 uppercase tracking-tight mt-2">Hemingway</span>
+                      </div>
+                      <div class="flex flex-col items-center gap-1 mb-0.5">
+                        <span class="material-symbols-outlined text-[#F5ECE5]/75 text-[11px]">sailing</span>
+                        <div class="w-4 h-0.5 bg-[#F5ECE5]/30 rounded-full">
+                        </div>
+                      </div>
+                    </div>
+                    <div class="absolute -top-8 left-1/2 -translate-x-1/2 text-[10px] font-label-sm font-semibold uppercase tracking-wider text-[#2C1810] px-2.5 py-0.5 rounded bg-white border border-[#E0D8CB] opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-sm">
+                      Extraer Tomo
+                    </div>
+                  </div>
+                  <!-- Book 5: Odisea (Gris azulado pizarra mate) -->
+                  <div class="tight-book group shelf-example shelf-example-homero" data-book-id="homero" title="Extraer y abrir 'Odisea'">
+                    <div class="tome-body shelf-tome-homero w-12 sm:w-15 md:w-[66px] h-70 sm:h-76 md:h-[324px] rounded-t-[3px] flex flex-col justify-between py-4 px-2 relative overflow-hidden transition-all duration-300">
+                      <div class="w-full h-1 bg-[#EEF2F5]/40 rounded-full">
+                      </div>
+                      <div class="flex-1 flex flex-col items-center justify-center my-3 overflow-hidden">
+                        <span class="font-headline-sm text-[#F7FAFC] text-xs sm:text-[13px] tracking-widest uppercase [writing-mode:vertical-rl] rotate-180 font-serif drop-shadow-xs truncate">Odisea • Homero</span><span class="font-label-sm text-[#C4D0D9] text-[9px] [writing-mode:vertical-rl] rotate-180 uppercase tracking-tight mt-2">Homero</span>
+                      </div>
+                      <div class="flex flex-col items-center gap-1 mb-1">
+                        <span class="material-symbols-outlined text-[#EEF2F5]/70 text-xs">explore</span>
+                        <div class="w-5 h-0.5 bg-[#EEF2F5]/30 rounded-full">
+                        </div>
+                      </div>
+                    </div>
+                    <div class="absolute -top-8 left-1/2 -translate-x-1/2 text-[10px] font-label-sm font-semibold uppercase tracking-wider text-[#2C1810] px-2.5 py-0.5 rounded bg-white border border-[#E0D8CB] opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg">
+                      Extraer Tomo
+                    </div>
+                  </div>
+                  <!-- Book 6: Glosario Fonético (Lino crudo / papel vitela claro) -->
+                  <div class="tight-book group hidden sm:flex shelf-example shelf-example-apuntes" data-book-id="apuntes" title="Extraer y abrir 'Glosario Fonético'">
+                    <div class="tome-body shelf-tome-apuntes w-10 sm:w-12 md:w-[52px] h-60 sm:h-68 md:h-[290px] rounded-t-[3px] flex flex-col justify-between py-3 px-1.5 relative overflow-hidden transition-all duration-300">
+                      <div class="w-full h-1 bg-[#82746F]/30 rounded-full">
+                      </div>
+                      <div class="flex-1 flex flex-col items-center justify-center my-2 overflow-hidden">
+                        <span class="font-headline-sm text-[#3E2317] text-[10px] sm:text-[11px] font-semibold tracking-wider uppercase [writing-mode:vertical-rl] rotate-180 font-serif truncate">Glosario Fonético</span><span class="font-label-sm text-[#795648] text-[8px] [writing-mode:vertical-rl] rotate-180 uppercase tracking-tight mt-2">Atelier</span>
+                      </div>
+                      <div class="w-full h-1 bg-[#82746F]/30 rounded-full">
+                      </div>
+                    </div>
+                    <div class="absolute -top-8 left-1/2 -translate-x-1/2 text-[10px] font-label-sm font-semibold uppercase tracking-wider text-[#2C1810] px-2.5 py-0.5 rounded bg-white border border-[#E0D8CB] opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-sm">
+                      Extraer Notas
+                    </div>
+                  </div>
+                  <!-- CTA Slot: Hueco reservado para nuevo tomo encuadernado (Contorno punteado minimalista y elegante) -->
+                  <div class="tight-book group" id="btn-shelf-add" role="button" tabindex="0" title="Añadir nuevo tomo (clic o soltar archivo)">
+                    <div class="tome-body w-14 sm:w-16 md:w-[70px] h-72 sm:h-80 md:h-[336px] rounded-t-[3px] flex flex-col items-center justify-between py-5 px-1.5 relative transition-all duration-300 border-2 border-dashed border-[#8E4E00]/40 hover:border-[#8E4E00] bg-[#FFFFFF]/70 hover:bg-[#FFFFFF] shadow-xs">
+                      <div class="w-6 h-6 rounded-full bg-[#F4EFE8] border border-[#E0D8CB] flex items-center justify-center text-[#8E4E00] group-hover:scale-110 transition-transform">
+                        <span class="material-symbols-outlined text-[16px]">add</span>
+                      </div>
+                      <div class="flex-1 flex flex-col items-center justify-center my-3">
+                        <span class="font-headline-sm text-[#8E4E00] group-hover:text-[#5F3F32] text-xs sm:text-[13px] tracking-widest font-serif uppercase [writing-mode:vertical-rl] rotate-180 transition-colors">+ NUEVO TOMO</span><span class="font-label-sm text-[#82746F] text-[9px] [writing-mode:vertical-rl] rotate-180 uppercase tracking-widest mt-2.5 transition-colors">.EPUB / .MOBI</span>
+                      </div>
+                      <div class="w-4 h-0.5 bg-[#8E4E00]/30 rounded-full">
+                      </div>
+                    </div>
+                    <div class="absolute -top-8 left-1/2 -translate-x-1/2 text-[10px] font-label-sm font-semibold uppercase tracking-wider text-white px-2.5 py-0.5 rounded bg-[#8E4E00] shadow-sm opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+                      Incrustar Manuscrito
+                    </div>
+                  </div>
+                </div>
+                <!-- Right Bookend (Roble nórdico claro) -->
+                <div class="hidden sm:flex flex-col items-start justify-end ml-0 mb-0.5 select-none z-10 shelf-bookend shelf-bookend-right">
+                  <div class="w-3.5 md:w-4 h-40 md:h-48 bg-[#DDD5C7] rounded-r-md border-y border-r border-[#CBC0AF] shadow-sm relative flex items-center justify-center">
+                    <div class="w-1 h-14 bg-[#BDB09E] rounded-full opacity-60">
+                    </div>
+                  </div>
+                  <div class="w-7 md:w-8 h-2.5 bg-[#CBC0AF] rounded-r-xs shadow-xs">
+                  </div>
+                </div>
+              </div>
+              <!-- Balda Contemporánea, Arquitectónica y Refinada (Madera nórdica clara / roble pálido) -->
+              <div class="w-full relative z-20 -mt-0.5">
+                <!-- Bisel superior con tono crema suave -->
+                <div class="w-full h-2.5 rounded-t-xs shelf-bevel">
+                </div>
+                <!-- Viga frontal de roble pálido / piedra refinada -->
+                <div class="w-full h-10 flex items-center justify-between px-6 border-b border-[#CBC0AF] rounded-b-md shelf-front-beam">
+                  <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-[#8E4E00]"></span><span class="font-label-sm text-[11px] text-[#504440] uppercase tracking-wider font-serif font-medium">Biblioteca • Obras cargadas</span>
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <span class="font-label-sm text-[10px] text-[#82746F] tracking-wider hidden sm:inline">Roble Nórdico Pálido</span><span class="px-2 py-0.5 rounded text-[9px] uppercase tracking-widest text-[#2C1810] bg-white/70 border border-[#CBC0AF]">Estante I</span>
+                  </div>
+                </div>
+                <div class="w-full h-6 bg-gradient-to-b from-[#442315]/10 to-transparent blur-xs pointer-events-none">
+                </div>
+              </div>
+            </div>
+            <!-- Quick Shelf Help Hint (Estilo claro y suave) -->
+            <div class="flex items-center gap-2.5 text-[#504440] text-sm mt-5 bg-white px-4 py-2 rounded-full border border-[#E8E2D8] shadow-xs">
+              <span class="material-symbols-outlined text-[18px] text-[#8E4E00]">touch_app</span><span class="">Pasa el ratón sobre los lomos para extraerlos, haz clic para abrir o arrastra un EPUB sobre la balda</span>
+            </div>
+          </div>
+          <!-- VIEW 2: Realistic 3D Book Stage (Initially hidden) -->
+          <div class="w-full hidden flex-col items-center transition-all duration-700 pt-4" id="tome-3d-stage">
+            <div class="w-full max-w-4xl flex items-center justify-between mb-8 px-4">
+              <button class="flex items-center gap-2 px-4 py-2 rounded-lg bg-white text-[#2C1810] font-label-md text-label-md border border-[#E0D8CB] hover:bg-[#F9F6F0] transition-colors shadow-xs" id="btn-return-to-shelf">
+                <span class="material-symbols-outlined text-[18px]">arrow_back</span><span class="">Volver a la Estantería</span>
+              </button>
+              <div class="flex items-center gap-3">
+                <button class="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#8E4E00] hover:bg-[#723E00] text-white font-label-md text-label-md shadow-xs transition-all" id="btn-toggle-spread">
+                  <span class="material-symbols-outlined text-[18px]" id="spread-icon">menu_book</span><span id="spread-label" class="">Abrir Pliego Interior</span>
+                </button>
+                <button class="flex items-center gap-2 px-4 py-2 rounded-lg bg-white text-[#2C1810] font-label-md text-label-md border border-[#E0D8CB] hover:bg-[#F9F6F0] transition-colors" id="btn-open-chapters-drawer">
+                  <span class="material-symbols-outlined text-[18px]">format_list_bulleted</span><span class="">Índice de Capítulos</span>
+                </button>
+              </div>
+            </div>
+            <!-- 3D Realistic Book Assembly -->
+            <div class="book-stage py-6">
+              <div class="book-tome" id="active-book-tome">
+                <div class="page-block-fore-edge">
+                </div>
+                <!-- Front cover (Editorial burgundi mate) -->
+                <div class="book-cover-front interactive-cover overflow-hidden cursor-pointer" id="interactive-cover">
+                  <div class="book-hinge-crease">
+                  </div>
+                  <div class="h-full w-full p-8 flex flex-col justify-between relative text-white">
+                    <div class="absolute inset-4 rounded-xs pointer-events-none opacity-20 border border-[#F5ECE1]">
+                    </div>
+                    <div class="flex items-center justify-between z-10">
+                      <span class="font-label-sm text-[10px] uppercase tracking-widest text-[#E2C7BE] font-serif">Edición Sonora</span><span class="material-symbols-outlined text-[#E2C7BE] text-lg">workspace_premium</span>
+                    </div>
+                    <div class="flex flex-col items-center text-center my-auto z-10">
+                      <span class="font-label-md text-label-md text-[#E2C7BE] uppercase tracking-widest mb-3">Santiago Posteguillo</span>
+                      <h2 class="font-headline-lg text-[28px] sm:text-[34px] leading-tight text-[#FAF5F0] font-serif tracking-tight drop-shadow-xs">
+                        LAS LEGIONES
+                        <br>
+                        MALDITAS
+                      </h2>
+                      <div class="w-16 h-0.5 bg-[#E2C7BE]/40 my-4">
+                      </div>
+                      <p class="font-body-sm text-[#E2C7BE]/80 text-xs italic font-serif max-w-xs">
+                        Trilogía de Escipión el Africano • Volumen II
+                      </p>
+                    </div>
+                    <div class="flex items-center justify-between text-[#E2C7BE] z-10">
+                      <div class="flex items-center gap-1.5">
+                        <span class="material-symbols-outlined text-sm">graphic_eq</span><span class="font-label-sm text-[10px] tracking-wide">32 Capítulos • Neural</span>
+                      </div>
+                      <span class="font-label-sm text-[10px] uppercase tracking-widest">ListenBook</span>
+                    </div>
+                  </div>
+                </div>
+                <!-- Open spread interior -->
+                <div class="book-open-solid-volume">
+                  <div class="pages-mass-block bg-[#FAF7EE]">
+                    <!-- Left Page -->
+                    <div class="w-1/2 h-full p-6 sm:p-8 flex flex-col justify-between relative overflow-hidden bg-[#FAF6EC] border-r border-[#E2D9C8]">
+                      <div>
+                        <div class="flex justify-between items-center pb-2 text-[#795648] font-serif text-[11px] border-b border-[#E2D9C8]">
+                          <span class="">SANTIAGO POSTEGUILLO</span><span class="">CAPÍTULO XIV</span>
+                        </div>
+                        <h4 class="font-headline-sm text-headline-sm text-[#2C1810] font-serif mt-4 mb-3">
+                          La marcha hacia Zama
+                        </h4>
+                        <p class="font-body-sm text-body-sm text-[#3E2317] leading-relaxed font-serif text-justify">
+                          El viento del atardecer levantaba remolinos de polvo dorado sobre las crestas rocosas de las colinas de Numidia. Publio Cornelio Escipión contemplaba las líneas de tiendas de campaña romanas que se extendían como una ordenada cuadrícula en la penumbra.
+                        </p>
+                        <p class="font-body-sm text-body-sm text-[#3E2317] leading-relaxed font-serif text-justify mt-3 hidden sm:block">
+                          A lo lejos, los fuegos del campamento cartaginés parpadeaban con un presagio oscuro. Aníbal aguardaba. Dos leyendas forjadas en veinte años de guerra se encontrarían finalmente al romper el alba.
+                        </p>
+                      </div>
+                      <div class="flex items-center justify-between pt-2 border-t border-[#E2D9C8] text-[#795648] text-[11px]">
+                        <span class="">Pág. 342</span><span class="font-label-sm text-[10px] text-[#8E4E00] font-semibold">Audio: 04:12 / 18:40</span>
+                      </div>
+                    </div>
+                    <div class="absolute inset-y-0 left-1/2 -ml-3 w-6 gutter-crease-shadow pointer-events-none z-10">
+                    </div>
+                    <!-- Right Page -->
+                    <div class="w-1/2 h-full p-6 sm:p-8 flex flex-col justify-between relative overflow-hidden bg-[#FAF6EC]">
+                      <div>
+                        <div class="flex justify-between items-center pb-2 text-[#795648] font-serif text-[11px] border-b border-[#E2D9C8]">
+                          <span class="">LAS LEGIONES MALDITAS</span><span class="">PLIEGO SONORO</span>
+                        </div>
+                        <div class="mt-4 p-4 rounded-xl bg-white border border-[#E5DDD0] shadow-xs">
+                          <span class="font-label-sm text-[10px] uppercase tracking-wider text-[#8E4E00] font-bold block mb-1">Síntesis Vocal Activa</span>
+                          <div class="flex items-center gap-3 mb-2">
+                            <div class="w-9 h-9 rounded-full bg-[#8E4E00] flex items-center justify-center text-white">
+                              <span class="material-symbols-outlined text-[18px]">record_voice_over</span>
+                            </div>
+                            <div>
+                              <div class="font-title-md text-title-md text-[#2C1810] text-sm font-semibold">
+                                Mateo • Épico
+                              </div>
+                              <div class="text-[11px] text-[#82746F]">
+                                Timbre grave, modulación marcial
+                              </div>
+                            </div>
+                          </div>
+                          <div class="w-full bg-[#EAE2D5] h-1.5 rounded-full overflow-hidden mt-3">
+                            <div class="bg-[#8E4E00] h-full rounded-full sample-progress-fill">
+                            </div>
+                          </div>
+                        </div>
+                        <p class="font-body-sm text-body-sm text-[#3E2317] leading-relaxed font-serif text-justify mt-4">
+                          —Si mañana caemos —susurró Lelio ajustándose la fíbula de su manto—, que los dioses sepan que no cedimos un solo paso en la llanura africana.
+                        </p>
+                      </div>
+                      <div class="flex items-center justify-between pt-2 border-t border-[#E2D9C8] text-[#795648] text-[11px]">
+                        <span class="">Pág. 343</span>
+                        <div class="flex items-center gap-1 text-[#8E4E00]">
+                          <span class="material-symbols-outlined text-sm">volume_up</span><span class="text-[10px] font-semibold">Motor Neural v2</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="flex items-center gap-4 mt-6">
+              <span class="font-body-sm text-body-sm text-[#82746F]">Toca la cubierta para alternar apertura y lectura con sonido</span>
+            </div>
+          </div>
+        </section>
+        <!-- Quick Manuscript Drag & Drop Banner (Fondo Claro, Borde Suave y Pulcro) -->
+        <!-- Bottom Atelier Summary & Voice Specs (Tarjetas claras idénticas a SCREEN_10) -->
+      </div>
+      <!-- Chapter Checklist Drawer Modal (Esquema Claro) -->
+      <div class="fixed inset-0 z-50 pointer-events-none opacity-0 transition-opacity duration-300 flex justify-end" id="chapters-drawer">
+        <div class="absolute inset-0 bg-black/40 backdrop-blur-xs pointer-events-auto" id="drawer-backdrop">
+        </div>
+        <div class="relative w-full max-w-md bg-white shadow-2xl h-full flex flex-col p-6 pointer-events-auto transform translate-x-full transition-transform duration-300 ease-out border-l border-[#E8E2D8]" id="drawer-content">
+          <div class="flex items-center justify-between pb-4 border-b border-[#E8E2D8]">
+            <div>
+              <h3 class="font-headline-md text-headline-md text-[#2C1810] font-serif">
+                Índice del Tomo
+              </h3>
+              <p class="font-body-sm text-body-sm text-[#82746F]">
+                Las legiones malditas • 32 Capítulos
+              </p>
+            </div>
+            <button class="w-8 h-8 rounded-full hover:bg-[#F4EFE8] flex items-center justify-center text-[#82746F]" id="btn-close-drawer">
+              <span class="material-symbols-outlined text-[20px]">close</span>
+            </button>
+          </div>
+          <div class="flex-1 overflow-y-auto py-4 space-y-2.5 custom-scroll">
+            <div class="p-3.5 rounded-xl bg-[#FAF7F2] border border-[#EBE4D8] flex items-center justify-between cursor-pointer hover:bg-[#F4EFE8] transition-colors">
+              <div>
+                <div class="font-label-md text-label-md text-[#2C1810] font-semibold">
+                  Capítulo I • El Senado en Roma
+                </div>
+                <div class="font-body-sm text-xs text-[#82746F]">
+                  14:20 min • Síntesis finalizada
+                </div>
+              </div>
+              <span class="material-symbols-outlined text-[#8E4E00] text-sm">check_circle</span>
+            </div>
+            <div class="p-3.5 rounded-xl bg-[#FAF7F2] border border-[#EBE4D8] flex items-center justify-between cursor-pointer hover:bg-[#F4EFE8] transition-colors">
+              <div>
+                <div class="font-label-md text-label-md text-[#2C1810] font-semibold">
+                  Capítulo II • La traición en Hispania
+                </div>
+                <div class="font-body-sm text-xs text-[#82746F]">
+                  21:05 min • Síntesis finalizada
+                </div>
+              </div>
+              <span class="material-symbols-outlined text-[#8E4E00] text-sm">check_circle</span>
+            </div>
+            <div class="p-3.5 rounded-xl bg-[#8E4E00] text-white flex items-center justify-between cursor-pointer shadow-xs">
+              <div>
+                <div class="font-label-md text-label-md font-semibold text-white">
+                  Capítulo XIV • La marcha hacia Zama
+                </div>
+                <div class="font-body-sm text-xs text-[#F5ECE1]">
+                  18:40 min • En reproducción
+                </div>
+              </div>
+              <span class="material-symbols-outlined text-white text-sm">play_arrow</span>
+            </div>
+            <div class="p-3.5 rounded-xl bg-[#FAF7F2] border border-[#EBE4D8] flex items-center justify-between cursor-pointer hover:bg-[#F4EFE8] transition-colors">
+              <div>
+                <div class="font-label-md text-label-md text-[#2C1810] font-semibold">
+                  Capítulo XV • El cuerno de los númidas
+                </div>
+                <div class="font-body-sm text-xs text-[#82746F]">
+                  26:15 min • Audio generado
+                </div>
+              </div>
+              <span class="material-symbols-outlined text-[#82746F] text-sm">headphones</span>
+            </div>
+            <div class="p-3.5 rounded-xl bg-[#FAF7F2] border border-[#EBE4D8] flex items-center justify-between cursor-pointer hover:bg-[#F4EFE8] transition-colors">
+              <div>
+                <div class="font-label-md text-label-md text-[#2C1810] font-semibold">
+                  Capítulo XVI • El choque de elefantes
+                </div>
+                <div class="font-body-sm text-xs text-[#82746F]">
+                  31:10 min • Audio generado
+                </div>
+              </div>
+              <span class="material-symbols-outlined text-[#82746F] text-sm">headphones</span>
+            </div>
+          </div>
+          <div class="pt-4 border-t border-[#E8E2D8] flex items-center justify-between">
+            <button class="px-4 py-2 rounded-lg bg-[#FAF7F2] text-[#2C1810] border border-[#E5DDD0] font-label-md text-label-md hover:bg-[#F4EFE8]">
+              Exportar M4B / MP3
+            </button>
+            <button class="px-5 py-2 rounded-lg bg-[#8E4E00] hover:bg-[#723E00] text-white font-label-md text-label-md shadow-xs" id="btn-listen-drawer">
+              Reproducir Tomo
+            </button>
+          </div>
+        </div>
+      </div>
+    </main>
+    <section id="configuracion_section">
+      <main class="w-full pt-20 bg-surface min-h-[calc(100vh-140px)]">
+        <div class="flex flex-col w-full">
+          <!-- Subtle Ambient Glow -->
+          <div class="relative w-full overflow-hidden pb-16">
+            <div class="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[360px] bg-secondary-fixed/30 blur-[130px] rounded-full pointer-events-none -z-10">
+            </div>
+            <div class="absolute -top-12 right-12 w-[400px] h-[400px] bg-tertiary-fixed/25 blur-[110px] rounded-full pointer-events-none -z-10">
+            </div>
+            <!-- Main Workspace Container -->
+            <div class="max-w-7xl mx-auto px-6 lg:px-12 pt-8">
+              <!-- Top Processing Pipeline Breadcrumb / Status Dock -->
+              <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-surface-container-lowest/80 backdrop-blur-md p-4 sm:px-6 rounded-2xl shadow-sm mb-10 border border-surface-container">
+                <div class="flex items-center gap-3">
+                  <span class="flex h-3 w-3 relative"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-secondary opacity-75"></span><span class="relative inline-flex rounded-full h-3 w-3 bg-secondary"></span></span><span class="font-label-md text-label-md text-primary font-semibold tracking-wide uppercase">Manuscrito Analizado con Éxito</span><span class="text-outline-variant">•</span><span class="font-body-sm text-body-sm text-on-surface-variant font-medium">EPUB 3.2 validado por el motor sintáctico</span>
+                </div>
+                <div class="flex items-center gap-3">
+                  <span class="font-label-sm text-label-sm text-on-surface-variant bg-surface-container-high px-3 py-1 rounded-full flex items-center gap-1.5"><span class="material-symbols-outlined text-[15px] text-secondary">verified</span>Codificación UTF-8</span>
+                  <button class="flex items-center gap-1.5 font-label-md text-label-md text-on-surface-variant hover:text-primary transition-colors px-3 py-1 rounded-lg hover:bg-surface-container" id="reuploadBtn">
+                    <span class="material-symbols-outlined text-[16px]">swap_horiz</span>Cambiar archivo
+                  </button>
+                  <button class="flex items-center gap-1.5 font-label-md text-label-md text-on-surface-variant hover:text-error transition-colors px-3 py-1 rounded-lg hover:bg-surface-container" id="delete_loaded_book" type="button">
+                    <span class="material-symbols-outlined text-[16px]">delete</span>Eliminar tomo
+                  </button>
+                </div>
+              </div>
+              <!-- Main Workspace: Left (3D Realistic Interactive Book Centerpiece) | Right (Literary Metrics & Audio Production) -->
+              <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-start">
+                <!-- Left: Interactive 3D Realistic Book Component (7 cols) -->
+                <div class="lg:col-span-7 flex flex-col items-center">
+                  <!-- Book Control Header / Guidance bar -->
+                  <div class="w-full flex items-center justify-between mb-4 px-2">
+                    <div class="flex items-center gap-2">
+                      <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-secondary-fixed text-on-secondary-fixed text-xs font-bold font-mono">3D</span><span class="font-label-sm text-label-sm text-on-surface font-semibold uppercase tracking-wider">Edición Táctil Interactiva</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <button class="px-3.5 py-1.5 rounded-lg bg-surface-container-low hover:bg-surface-container-high text-primary font-label-sm text-label-sm font-semibold flex items-center gap-1.5 transition-all border border-outline-variant/40 shadow-xs cursor-pointer active:scale-98" id="toggleBookBtn">
+                        <span class="material-symbols-outlined text-[17px] text-secondary" id="bookToggleIcon">close</span><span id="bookToggleLabel" class="">Cerrar libro</span>
+                      </button>
+                    </div>
+                  </div>
+                  <!-- 3D Interactive Stage -->
+                  <div class="book-stage relative w-full flex justify-center items-center py-6 min-h-[580px]" id="stageContainer">
+                    <!-- Ground Shadow: Anclada suavemente bajo la base sin desbordar de forma irreal -->
+                    <div class="absolute bottom-6 w-[80%] max-w-[620px] h-14 bg-primary/20 blur-xl rounded-full transition-all duration-700 pointer-events-none transform scale-95 scale-110 opacity-80" id="groundShadow">
+                    </div>
+                    <!-- The 3D Tome Unit (Hardcover + Realistic Page Block + Flush Open Volume) -->
+                    <div class="book-tome relative select-none cursor-pointer group is-open" id="bookTome">
+                      <!-- REALISTIC FORE-EDGE (Únicamente en el lateral derecho, exactamente a la altura de la cubierta) -->
+                      <div aria-hidden="true" class="page-block-fore-edge pointer-events-none" id="foreEdgeBlock">
+                        <!-- Finas líneas de capas de papel sin salientes exteriores -->
+                        <div class="absolute inset-y-1 left-0.5 right-0.5 flex flex-col justify-between opacity-40 pointer-events-none">
+                          <div class="h-[1px] bg-[#9e7652]">
+                          </div>
+                          <div class="h-[1px] bg-[#9e7652]">
+                          </div>
+                          <div class="h-[1px] bg-[#9e7652]">
+                          </div>
+                          <div class="h-[1px] bg-[#9e7652]">
+                          </div>
+                        </div>
+                      </div>
+                      <!-- Realistic Back Cover & Spine Depth Core -->
+                      <div class="absolute inset-0 bg-[#200c03] rounded-r-lg rounded-l-sm shadow-xl border-l-[12px] border-[#160802]">
+                        <!-- Spine gold ribs simulation -->
+                        <div class="absolute -left-[12px] top-0 bottom-0 w-[12px] flex flex-col justify-around py-8 pointer-events-none">
+                          <div class="w-full h-[2px] bg-amber-400/60 shadow-xs">
+                          </div>
+                          <div class="w-full h-[2px] bg-amber-400/60 shadow-xs">
+                          </div>
+                          <div class="w-full h-[2px] bg-amber-400/60 shadow-xs">
+                          </div>
+                          <div class="w-full h-[2px] bg-amber-400/60 shadow-xs">
+                          </div>
+                        </div>
+                      </div>
+                      <!-- ========================================================================= -->
+                      <!-- SOLID OPEN BOOK VOLUME: EXACT FLUSH PAPER BLOCK ASSEMBLY (ZERO OVERHANG) -->
+                      <!-- ========================================================================= -->
+                      <div class="book-open-solid-volume" id="bookOpenVolume">
+                        <div class="pages-mass-block relative w-full h-full overflow-hidden">
+                          <!-- ==================== PLIEGO 1: PÁGINAS 1 Y 2 ==================== -->
+                          <div class="spread-pane absolute inset-0 flex w-full h-full z-10" id="spreadSet1">
+                            <!-- PÁGINA 1 (Izquierda: Prólogo a Cap 3) -->
+                            <div class="w-1/2 parchment-pattern page-left-ambient p-4 sm:p-5 flex flex-col justify-between border-r border-[#cfbea8]/70 relative">
+                              <div class="border-b border-[#cfbeaa] pb-2 flex items-center justify-between">
+                                <div class="flex items-center gap-1.5">
+                                  <span class="w-2 h-2 rounded-full bg-secondary"></span><span class="font-label-sm text-[10px] sm:text-[11px] font-bold tracking-wider uppercase text-secondary">Vol. II • Acto I</span>
+                                </div>
+                                <span class="font-mono text-[10px] text-[#8a725f]">Cap. 0 - 3</span>
+                              </div>
+                              <!-- Chapters Page 1 -->
+                              <div class="flex-1 py-2.5 flex flex-col gap-1.5 overflow-y-auto pr-1 custom-scroll">
+                                <!-- Prólogo -->
+                                <label class="flex items-start justify-between p-1.5 rounded-lg hover:bg-[#ebdcc7]/70 transition-colors cursor-pointer group">
+                                  <div class="flex items-start gap-2 max-w-[78%]">
+                                    <input class="chapter-cb accent-[#8e4e00] w-3.5 h-3.5 mt-0.5 rounded cursor-pointer shrink-0" data-duration="12" type="checkbox">
+                                    <div class="flex flex-col">
+                                      <span class="font-serif text-[11px] sm:text-[12px] text-[#554236] group-hover:text-secondary font-medium leading-tight">Prólogo. El juramento de los vencidos</span><span class="text-[9.5px] font-mono text-[#8a705c]">3.420 palabras • Intro</span>
+                                    </div>
+                                  </div>
+                                  <span class="font-mono text-[10px] text-[#866f5c] pt-0.5 font-medium shrink-0">12:15</span>
+                                </label>
+                                <!-- Cap 1 -->
+                                <label class="flex items-start justify-between p-1.5 rounded-lg hover:bg-[#ebdcc7]/70 transition-colors cursor-pointer group">
+                                  <div class="flex items-start gap-2 max-w-[78%]">
+                                    <input checked="" class="chapter-cb accent-[#8e4e00] w-3.5 h-3.5 mt-0.5 rounded cursor-pointer shrink-0" data-duration="42" type="checkbox">
+                                    <div class="flex flex-col">
+                                      <span class="font-serif text-[11px] sm:text-[12px] text-[#2c1307] group-hover:text-secondary font-semibold leading-tight">1. Los estandartes clavados en la tierra</span><span class="text-[9.5px] font-mono text-[#8a705c]">8.120 palabras • Zama</span>
+                                    </div>
+                                  </div>
+                                  <span class="font-mono text-[10px] text-[#7c6352] pt-0.5 font-medium shrink-0">42:10</span>
+                                </label>
+                                <!-- Cap 2 -->
+                                <label class="flex items-start justify-between p-1.5 rounded-lg hover:bg-[#ebdcc7]/70 transition-colors cursor-pointer group">
+                                  <div class="flex items-start gap-2 max-w-[78%]">
+                                    <input checked="" class="chapter-cb accent-[#8e4e00] w-3.5 h-3.5 mt-0.5 rounded cursor-pointer shrink-0" data-duration="38" type="checkbox">
+                                    <div class="flex flex-col">
+                                      <span class="font-serif text-[11px] sm:text-[12px] text-[#2c1307] group-hover:text-secondary font-semibold leading-tight">2. Publio Cornelio Escipión</span><span class="text-[9.5px] font-mono text-[#8a705c]">7.650 palabras • Roma</span>
+                                    </div>
+                                  </div>
+                                  <span class="font-mono text-[10px] text-[#7c6352] pt-0.5 font-medium shrink-0">38:45</span>
+                                </label>
+                                <!-- Cap 3 -->
+                                <label class="flex items-start justify-between p-1.5 rounded-lg hover:bg-[#ebdcc7]/70 transition-colors cursor-pointer group">
+                                  <div class="flex items-start gap-2 max-w-[78%]">
+                                    <input checked="" class="chapter-cb accent-[#8e4e00] w-3.5 h-3.5 mt-0.5 rounded cursor-pointer shrink-0" data-duration="51" type="checkbox">
+                                    <div class="flex flex-col">
+                                      <span class="font-serif text-[11px] sm:text-[12px] text-[#2c1307] group-hover:text-secondary font-semibold leading-tight">3. El amigo de Plauto</span><span class="text-[9.5px] font-mono text-[#8a705c]">9.940 palabras • Teatro</span>
+                                    </div>
+                                  </div>
+                                  <span class="font-mono text-[10px] text-[#7c6352] pt-0.5 font-medium shrink-0">51:20</span>
+                                </label>
+                              </div>
+                              <div class="border-t border-[#cfbeaa] pt-2 flex items-center justify-between text-[10px] text-[#866e5c]">
+                                <span class="italic font-serif">Las Legiones Malditas</span><span class="font-mono font-bold text-secondary">Pág. 1</span>
+                              </div>
+                            </div>
+                            <!-- PÁGINA 2 (Derecha: Cap 4 a 6) -->
+                            <div class="w-1/2 parchment-pattern page-right-ambient p-4 sm:p-5 flex flex-col justify-between border-l border-[#cfbea8]/70 relative">
+                              <div class="border-b border-[#cfbeaa] pb-2 flex items-center justify-between">
+                                <span class="font-mono text-[10px] text-[#8a725f]">Cap. 4 - 6</span>
+                                <div class="flex items-center gap-1">
+                                  <span class="font-label-sm text-[10px] sm:text-[11px] font-bold tracking-wider uppercase text-secondary">Táctica&amp;Alianzas</span><span class="w-2 h-2 rounded-full bg-[#8e4e00]/60"></span>
+                                </div>
+                              </div>
+                              <!-- Chapters Page 2 -->
+                              <div class="flex-1 py-2.5 flex flex-col gap-1.5 overflow-y-auto pr-1 custom-scroll">
+                                <!-- Cap 4 -->
+                                <label class="flex items-start justify-between p-1.5 rounded-lg hover:bg-[#ebdcc7]/70 transition-colors cursor-pointer group">
+                                  <div class="flex items-start gap-2 max-w-[78%]">
+                                    <input checked="" class="chapter-cb accent-[#8e4e00] w-3.5 h-3.5 mt-0.5 rounded cursor-pointer shrink-0" data-duration="46" type="checkbox">
+                                    <div class="flex flex-col">
+                                      <span class="font-serif text-[11px] sm:text-[12px] text-[#2c1307] group-hover:text-secondary font-semibold leading-tight">4. El futuro de Lelio</span><span class="text-[9.5px] font-mono text-[#8a705c]">8.830 palabras • Hispania</span>
+                                    </div>
+                                  </div>
+                                  <span class="font-mono text-[10px] text-[#7c6352] pt-0.5 font-medium shrink-0">46:15</span>
+                                </label>
+                                <!-- Cap 5 -->
+                                <label class="flex items-start justify-between p-1.5 rounded-lg hover:bg-[#ebdcc7]/70 transition-colors cursor-pointer group">
+                                  <div class="flex items-start gap-2 max-w-[78%]">
+                                    <input checked="" class="chapter-cb accent-[#8e4e00] w-3.5 h-3.5 mt-0.5 rounded cursor-pointer shrink-0" data-duration="54" type="checkbox">
+                                    <div class="flex flex-col">
+                                      <span class="font-serif text-[11px] sm:text-[12px] text-[#2c1307] group-hover:text-secondary font-semibold leading-tight">5. El león agazapado</span><span class="text-[9.5px] font-mono text-[#8a705c]">10.400 palabras • Cartago</span>
+                                    </div>
+                                  </div>
+                                  <span class="font-mono text-[10px] text-[#7c6352] pt-0.5 font-medium shrink-0">54:02</span>
+                                </label>
+                                <!-- Cap 6 -->
+                                <label class="flex items-start justify-between p-1.5 rounded-lg hover:bg-[#ebdcc7]/70 transition-colors cursor-pointer group">
+                                  <div class="flex items-start gap-2 max-w-[78%]">
+                                    <input checked="" class="chapter-cb accent-[#8e4e00] w-3.5 h-3.5 mt-0.5 rounded cursor-pointer shrink-0" data-duration="48" type="checkbox">
+                                    <div class="flex flex-col">
+                                      <span class="font-serif text-[11px] sm:text-[12px] text-[#2c1307] group-hover:text-secondary font-semibold leading-tight">6. Netikerty</span><span class="text-[9.5px] font-mono text-[#8a705c]">9.250 palabras • Alejandría</span>
+                                    </div>
+                                  </div>
+                                  <span class="font-mono text-[10px] text-[#7c6352] pt-0.5 font-medium shrink-0">48:30</span>
+                                </label>
+                              </div>
+                              <div class="border-t border-[#cfbeaa] pt-2 flex items-center justify-between text-[10px] text-[#866e5c]">
+                                <span class="font-mono font-bold text-secondary">Pág. 2</span><span class="italic font-serif">Santiago Posteguillo</span>
+                              </div>
+                            </div>
+                          </div>
+                          <!-- ==================== PLIEGO 2: PÁGINAS 3 Y 4 ==================== -->
+                          <div class="spread-pane absolute inset-0 flex w-full h-full opacity-0 z-10 hidden" id="spreadSet2">
+                            <!-- PÁGINA 3 (Izquierda: Cap 7 a 9) -->
+                            <div class="w-1/2 parchment-pattern page-left-ambient p-4 sm:p-5 flex flex-col justify-between border-r border-[#cfbea8]/70 relative">
+                              <div class="border-b border-[#cfbeaa] pb-2 flex items-center justify-between">
+                                <div class="flex items-center gap-1.5">
+                                  <span class="w-2 h-2 rounded-full bg-secondary"></span><span class="font-label-sm text-[10px] sm:text-[11px] font-bold tracking-wider uppercase text-secondary">Vol. II • Acto II</span>
+                                </div>
+                                <span class="font-mono text-[10px] text-[#8a725f]">Cap. 7 - 9</span>
+                              </div>
+                              <!-- Chapters Page 3 -->
+                              <div class="flex-1 py-2.5 flex flex-col gap-1.5 overflow-y-auto pr-1 custom-scroll">
+                                <!-- Cap 7 -->
+                                <label class="flex items-start justify-between p-1.5 rounded-lg hover:bg-[#ebdcc7]/70 transition-colors cursor-pointer group">
+                                  <div class="flex items-start gap-2 max-w-[78%]">
+                                    <input checked="" class="chapter-cb accent-[#8e4e00] w-3.5 h-3.5 mt-0.5 rounded cursor-pointer shrink-0" data-duration="43" type="checkbox">
+                                    <div class="flex flex-col">
+                                      <span class="font-serif text-[11px] sm:text-[12px] text-[#2c1307] group-hover:text-secondary font-semibold leading-tight">7. Las dudas de Catón</span><span class="text-[9.5px] font-mono text-[#8a705c]">8.190 palabras • Senado</span>
+                                    </div>
+                                  </div>
+                                  <span class="font-mono text-[10px] text-[#7c6352] pt-0.5 font-medium shrink-0">43:10</span>
+                                </label>
+                                <!-- Cap 8 -->
+                                <label class="flex items-start justify-between p-1.5 rounded-lg hover:bg-[#ebdcc7]/70 transition-colors cursor-pointer group">
+                                  <div class="flex items-start gap-2 max-w-[78%]">
+                                    <input checked="" class="chapter-cb accent-[#8e4e00] w-3.5 h-3.5 mt-0.5 rounded cursor-pointer shrink-0" data-duration="39" type="checkbox">
+                                    <div class="flex flex-col">
+                                      <span class="font-serif text-[11px] sm:text-[12px] text-[#2c1307] group-hover:text-secondary font-semibold leading-tight">8. El hijo de Publio</span><span class="text-[9.5px] font-mono text-[#8a705c]">7.420 palabras • Familia</span>
+                                    </div>
+                                  </div>
+                                  <span class="font-mono text-[10px] text-[#7c6352] pt-0.5 font-medium shrink-0">39:40</span>
+                                </label>
+                                <!-- Cap 9 -->
+                                <label class="flex items-start justify-between p-1.5 rounded-lg hover:bg-[#ebdcc7]/70 transition-colors cursor-pointer group">
+                                  <div class="flex items-start gap-2 max-w-[78%]">
+                                    <input checked="" class="chapter-cb accent-[#8e4e00] w-3.5 h-3.5 mt-0.5 rounded cursor-pointer shrink-0" data-duration="53" type="checkbox">
+                                    <div class="flex flex-col">
+                                      <span class="font-serif text-[11px] sm:text-[12px] text-[#2c1307] group-hover:text-secondary font-semibold leading-tight">9. El ejército de Asdrúbal</span><span class="text-[9.5px] font-mono text-[#8a705c]">10.820 palabras • Metauro</span>
+                                    </div>
+                                  </div>
+                                  <span class="font-mono text-[10px] text-[#7c6352] pt-0.5 font-medium shrink-0">53:20</span>
+                                </label>
+                              </div>
+                              <div class="border-t border-[#cfbeaa] pt-2 flex items-center justify-between text-[10px] text-[#866e5c]">
+                                <span class="italic font-serif">Las Legiones Malditas</span><span class="font-mono font-bold text-secondary">Pág. 3</span>
+                              </div>
+                            </div>
+                            <!-- PÁGINA 4 (Derecha: Cap 10 a 12) -->
+                            <div class="w-1/2 parchment-pattern page-right-ambient p-4 sm:p-5 flex flex-col justify-between border-l border-[#cfbea8]/70 relative">
+                              <div class="border-b border-[#cfbeaa] pb-2 flex items-center justify-between">
+                                <span class="font-mono text-[10px] text-[#8a725f]">Cap. 10 - 12</span>
+                                <div class="flex items-center gap-1">
+                                  <span class="font-label-sm text-[10px] sm:text-[11px] font-bold tracking-wider uppercase text-secondary">Clímax en Zama</span><span class="w-2 h-2 rounded-full bg-[#8e4e00]/60"></span>
+                                </div>
+                              </div>
+                              <!-- Chapters Page 4 -->
+                              <div class="flex-1 py-2.5 flex flex-col gap-1.5 overflow-y-auto pr-1 custom-scroll">
+                                <!-- Cap 10 -->
+                                <label class="flex items-start justify-between p-1.5 rounded-lg hover:bg-[#ebdcc7]/70 transition-colors cursor-pointer group">
+                                  <div class="flex items-start gap-2 max-w-[78%]">
+                                    <input checked="" class="chapter-cb accent-[#8e4e00] w-3.5 h-3.5 mt-0.5 rounded cursor-pointer shrink-0" data-duration="47" type="checkbox">
+                                    <div class="flex flex-col">
+                                      <span class="font-serif text-[11px] sm:text-[12px] text-[#2c1307] group-hover:text-secondary font-semibold leading-tight">10. El «nimbus»</span><span class="text-[9.5px] font-mono text-[#8a705c]">9.140 palabras • Tempestad</span>
+                                    </div>
+                                  </div>
+                                  <span class="font-mono text-[10px] text-[#7c6352] pt-0.5 font-medium shrink-0">47:15</span>
+                                </label>
+                                <!-- Cap 11 -->
+                                <label class="flex items-start justify-between p-1.5 rounded-lg hover:bg-[#ebdcc7]/70 transition-colors cursor-pointer group">
+                                  <div class="flex items-start gap-2 max-w-[78%]">
+                                    <input checked="" class="chapter-cb accent-[#8e4e00] w-3.5 h-3.5 mt-0.5 rounded cursor-pointer shrink-0" data-duration="44" type="checkbox">
+                                    <div class="flex flex-col">
+                                      <span class="font-serif text-[11px] sm:text-[12px] text-[#2c1307] group-hover:text-secondary font-semibold leading-tight">11. La entrevista previa</span><span class="text-[9.5px] font-mono text-[#8a705c]">8.650 palabras • Diplomacia</span>
+                                    </div>
+                                  </div>
+                                  <span class="font-mono text-[10px] text-[#7c6352] pt-0.5 font-medium shrink-0">44:50</span>
+                                </label>
+                                <!-- Cap 12 -->
+                                <label class="flex items-start justify-between p-1.5 rounded-lg hover:bg-[#ebdcc7]/70 transition-colors cursor-pointer group">
+                                  <div class="flex items-start gap-2 max-w-[78%]">
+                                    <input checked="" class="chapter-cb accent-[#8e4e00] w-3.5 h-3.5 mt-0.5 rounded cursor-pointer shrink-0" data-duration="48" type="checkbox">
+                                    <div class="flex flex-col">
+                                      <span class="font-serif text-[11px] sm:text-[12px] text-[#2c1307] group-hover:text-secondary font-semibold leading-tight">12. La noche antes de la batalla</span><span class="text-[9.5px] font-mono text-[#8a705c]">9.580 palabras • Vigilia</span>
+                                    </div>
+                                  </div>
+                                  <span class="font-mono text-[10px] text-[#7c6352] pt-0.5 font-medium shrink-0">48:10</span>
+                                </label>
+                              </div>
+                              <div class="border-t border-[#cfbeaa] pt-2 flex items-center justify-between text-[10px] text-[#866e5c]">
+                                <span class="font-mono font-bold text-secondary">Pág. 4</span><span class="italic font-serif">Santiago Posteguillo</span>
+                              </div>
+                            </div>
+                          </div>
+                          <!-- CENTRAL GUTTER CREASE & BINDING SHADOW -->
+                          <div class="absolute left-1/2 -translate-x-1/2 top-0 bottom-0 w-8 gutter-crease-shadow z-20 pointer-events-none">
+                          </div>
+                        </div>
+                      </div>
+                      <!-- ========================================== -->
+                      <!-- THE 3D FRONT COVER: HINGED AT SPINE ORIGIN -->
+                      <!-- ========================================== -->
+                      <div class="book-cover-front overflow-hidden cursor-pointer" id="frontCover" data-listenbook-cover="true">
+                        <!-- Book Exterior Face: Pure clean original cover art with leather texture & edges -->
+                        <div class="absolute inset-0 bg-[#1f0b03] flex flex-col justify-between overflow-hidden">
+                          <!-- Full-color Original Cover Illustration -->
+                          <img class="absolute inset-0 w-full h-full object-cover select-none" data-alt="Editorial book cover depicting an ancient Roman legionary soldier from behind with ornate weathered bronze and iron armor, holding a spear at sunset over a hazy battlefield in warm tones of terracotta, espresso, and gold leaf, entitled Las Legiones Malditas with bold classical serif typography" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDvgv-uP38X517WTI67swW_BoGcWVFPGzDt3O1ARS1VR53EDBB0wo9CdFYFGh0uFhp92miIzAL75Gf0JEBdA1Dw2gOHjH6V2M6B-BCdMM1hNFQFPmWE9BryzwZpm8jQMSIVfnrGMlt9zd6ffr9R_9WZilgFxGyEIbZlLW2VhUIYpsMp9CNn4N-BV4QTTuJ3MySCi2jaNbTiGxhMqiledDrChh-TRIo8Mp3AHbTPW-R0z9VKfKb3vJzw">
+                          <!-- Sombra dinámica sobre la cubierta al girar sobre el lomo -->
+                          <div class="cover-dynamic-shading">
+                          </div>
+                          <div class="book-hinge-crease">
+                          </div>
+                          <!-- Leatherette overlay and spine curvature shadows -->
+                          <div class="absolute inset-0 bg-gradient-to-t from-[#140601]/90 via-transparent to-[#140601]/40 mix-blend-multiply pointer-events-none">
+                          </div>
+                          <div class="absolute inset-0 bg-gradient-to-r from-black/50 via-transparent to-black/30 pointer-events-none">
+                          </div>
+                          <div class="absolute top-0 bottom-0 left-0 w-5 bg-gradient-to-r from-black/70 via-white/10 to-transparent pointer-events-none">
+                          </div>
+                          <div class="absolute top-0 bottom-0 left-4 w-1 bg-black/40 blur-[0.5px] pointer-events-none">
+                          </div>
+                          <!-- Ornate Silk Reading Ribbon (Crimson / Gold) -->
+                          <div class="absolute -top-1 right-7 w-6 h-20 bg-gradient-to-b from-[#8f1d1d] via-[#a82222] to-[#701515] rounded-b-sm shadow-xl z-20 flex flex-col justify-end items-center pb-1 border-x border-[#c98235]/40 pointer-events-none">
+                            <span class="w-2.5 h-0.5 bg-[#fbd47b] rounded-full mb-0.5"></span>
+                            <div class="w-0 h-0 border-l-[12px] border-l-transparent border-r-[12px] border-r-transparent border-t-[8px] border-t-[#701515] translate-y-2">
+                            </div>
+                          </div>
+                          <!-- Clean Cover Header Badge -->
+                          <div class="relative z-10 p-5 flex items-center justify-between">
+                            <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-amber-300/30">
+                              <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span><span class="font-mono text-[10px] tracking-widest uppercase text-amber-200 font-semibold">EPUB Master</span>
+                            </div>
+                            <span class="material-symbols-outlined text-amber-200/90 text-[20px]">auto_stories</span>
+                          </div>
+                          <!-- Clean Cover Footer: Indicador de apertura -->
+                          <div class="relative z-10 p-5 bg-gradient-to-t from-black/95 via-black/80 to-transparent pt-12 flex flex-col gap-2">
+                            <div class="py-2.5 px-3.5 rounded-xl bg-black/55 backdrop-blur-md flex items-center justify-between text-xs text-amber-100 border border-white/15 shadow-lg group-hover:border-amber-400/50 transition-colors">
+                              <span class="flex items-center gap-2 font-medium"><span class="material-symbols-outlined text-[18px] text-amber-300 group-hover:scale-110 transition-transform">touch_app</span>Pasa el cursor o haz clic para abrir y ver pliego</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <!-- Interactive 3D Guide Bar & Flipping Controls below book -->
+                  <div class="w-full max-w-[560px] mt-2 flex flex-col sm:flex-row items-center justify-between gap-3 bg-surface-container-low/80 backdrop-blur-sm px-4 py-3 rounded-2xl border border-surface-container-high shadow-xs">
+                    <div class="flex items-center gap-2 text-on-surface-variant text-xs">
+                      <span class="material-symbols-outlined text-[18px] text-secondary">menu_book</span><span id="guideBarHelpText" class="">Usa las flechas para hojear entre las páginas</span>
+                    </div>
+                    <div class="flex items-center gap-1.5 shrink-0">
+                      <button class="px-2.5 py-1 text-xs rounded-lg bg-surface-container hover:bg-surface-container-highest text-primary font-semibold flex items-center gap-1 transition-colors cursor-pointer" id="bookPrevRibbon" title="Cerrar libro">
+                        <span class="material-symbols-outlined text-[15px]">close</span>Cerrar
+                      </button>
+                      <!-- Page Flip Previous / Next Buttons -->
+                      <div class="flex items-center gap-1 bg-surface-container-highest/60 p-0.5 rounded-lg border border-outline-variant/30" id="pageFlipControls">
+                        <button class="p-1 rounded text-primary hover:bg-surface-container-lowest disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer" id="prevPageBtn" title="Páginas anteriores" disabled="">
+                          <span class="material-symbols-outlined text-[16px]">chevron_left</span>
+                        </button>
+                        <span class="text-xs font-mono font-semibold px-1.5 text-primary" id="pageStateBadge">Págs 1 - 2</span>
+                        <button class="p-1 rounded text-primary hover:bg-surface-container-lowest disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer" id="nextPageBtn" title="Páginas siguientes">
+                          <span class="material-symbols-outlined text-[16px]">chevron_right</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <!-- Right Column: Literary Overview & Production Console (5 cols) -->
+                <div class="lg:col-span-5 flex flex-col gap-6">
+                  <!-- Heading & Author Block -->
+                  <div class="flex flex-col gap-2">
+                    <div class="flex items-center gap-3">
+                      <span class="font-label-sm text-label-sm uppercase tracking-widest text-on-surface-variant font-semibold">Obra Seleccionada</span><span class="text-outline-variant">•</span><span class="font-label-sm text-label-sm text-secondary font-medium">Trilogía de Escipión Vol. II</span>
+                    </div>
+                    <h1 id="titulo_display" class="font-display-lg text-[36px] sm:text-display-lg text-primary tracking-tight font-serif leading-tight mt-1">
+                      Las legiones malditas
+                    </h1>
+                    <div class="flex items-center gap-2 mt-1">
+                      <span class="font-label-lg text-label-lg text-on-surface-variant font-normal">por</span><span id="autor_display" class="font-headline-md text-headline-md text-primary font-serif italic">Santiago Posteguillo</span>
+                    </div>
+                  </div>
+                  <!-- Rich Metadata Bento Grid -->
+                  <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-surface-container-low/70 p-3 rounded-2xl border border-surface-container">
+                    <!-- Stat 1: Capítulos -->
+                    <div class="bg-surface-container-lowest p-3 rounded-xl flex flex-col justify-between shadow-xs">
+                      <div class="flex items-center justify-between text-on-surface-variant">
+                        <span class="font-label-sm text-[11px] uppercase tracking-wide">Capítulos</span><span class="material-symbols-outlined text-[16px] text-secondary">format_list_numbered</span>
+                      </div>
+                      <div class="mt-2">
+                        <span class="font-headline-sm text-headline-sm text-primary font-serif font-bold" id="totalChaptersBadge">12</span><span id="generatedChaptersInline" class="font-body-sm text-[13px] text-secondary font-semibold ml-1">(0)</span><span class="font-body-sm text-[11px] text-on-surface-variant block">Segmentos</span>
+                      </div>
+                    </div>
+                    <!-- Stat 2: Duración de audios generados -->
+                    <div class="bg-surface-container-lowest p-3 rounded-xl flex flex-col justify-between shadow-xs">
+                      <div class="flex items-center justify-between text-on-surface-variant">
+                        <span class="font-label-sm text-[11px] uppercase tracking-wide">Duración</span><span class="material-symbols-outlined text-[16px] text-secondary">schedule</span>
+                      </div>
+                      <div class="mt-2">
+                        <span class="font-headline-sm text-headline-sm text-primary font-serif font-bold" id="totalDurationBadge">0m 00s</span><span class="font-body-sm text-[11px] text-on-surface-variant block">Audios generados</span>
+                      </div>
+                    </div>
+                    <!-- Stat 3: Tamaño Archivo -->
+                    <div class="bg-surface-container-lowest p-3 rounded-xl flex flex-col justify-between shadow-xs">
+                      <div class="flex items-center justify-between text-on-surface-variant">
+                        <span class="font-label-sm text-[11px] uppercase tracking-wide">Archivo</span><span class="material-symbols-outlined text-[16px] text-secondary">attachment</span>
+                      </div>
+                      <div class="mt-2">
+                        <span class="font-headline-sm text-headline-sm text-primary font-serif font-bold">4.2 MB</span><span class="font-body-sm text-[11px] text-on-surface-variant block">EPUB Íntegro</span>
+                      </div>
+                    </div>
+                    <!-- Stat 4: Capítulos generados -->
+                    <div class="bg-surface-container-lowest p-3 rounded-xl flex flex-col justify-between shadow-xs">
+                      <div class="flex items-center justify-between text-on-surface-variant">
+                        <span class="font-label-sm text-[11px] uppercase tracking-wide">Generados</span><span class="material-symbols-outlined text-[16px] text-secondary">check_circle</span>
+                      </div>
+                      <div class="mt-2">
+                        <span class="font-headline-sm text-headline-sm text-primary font-serif font-bold" id="generatedChaptersBadge">0</span><span class="font-body-sm text-[11px] text-on-surface-variant block">Audios listos</span>
+                      </div>
+                    </div>
+                  </div>
+                  <!-- Voice Selector & Preview Card -->
+                  <div class="bg-surface-container-lowest/90 backdrop-blur-md p-4 sm:p-5 rounded-2xl shadow-sm border border-surface-container flex flex-col gap-3">
+                    <div class="flex items-center justify-between">
+                      <div class="flex items-center gap-2.5">
+                        <div class="w-9 h-9 rounded-xl bg-tertiary-container flex items-center justify-center text-on-tertiary">
+                          <span class="material-symbols-outlined text-[20px]">mic</span>
+                        </div>
+                        <div class="flex flex-col">
+                          <span class="font-label-sm text-[11px] text-on-surface-variant uppercase tracking-wider">Voz Configurada</span><span class="font-title-md text-title-md text-primary leading-snug">Mateo • Narrador Épico</span>
+                        </div>
+                      </div>
+                      <span class="bg-secondary-fixed text-on-secondary-fixed px-2.5 py-0.5 rounded-full font-label-sm text-label-sm font-semibold">Neural HQ</span>
+                    </div>
+                    <!-- Waveform & Miniature Preview Player -->
+                    <div class="bg-surface-container-low rounded-xl p-2.5 flex items-center gap-3">
+                      <button class="w-9 h-9 rounded-full bg-primary hover:bg-primary-container text-on-primary flex items-center justify-center transition-transform active:scale-95 shadow-sm shrink-0 cursor-pointer" id="previewVoiceBtn">
+                        <span class="material-symbols-outlined text-[20px]" id="playIcon">play_arrow</span>
+                      </button>
+                      <!-- Synthesized audio waveform graphic -->
+                      <div class="flex-1 flex items-center gap-1 h-7 px-1 overflow-hidden" id="waveformBars">
+                        <div class="w-1 bg-secondary rounded-full h-2 transition-all duration-300">
+                        </div>
+                        <div class="w-1 bg-secondary rounded-full h-4 transition-all duration-300">
+                        </div>
+                        <div class="w-1 bg-secondary rounded-full h-6 transition-all duration-300">
+                        </div>
+                        <div class="w-1 bg-secondary rounded-full h-3 transition-all duration-300">
+                        </div>
+                        <div class="w-1 bg-secondary rounded-full h-5 transition-all duration-300">
+                        </div>
+                        <div class="w-1 bg-secondary rounded-full h-7 transition-all duration-300">
+                        </div>
+                        <div class="w-1 bg-secondary rounded-full h-4 transition-all duration-300">
+                        </div>
+                        <div class="w-1 bg-secondary rounded-full h-2 transition-all duration-300">
+                        </div>
+                        <div class="w-1 bg-secondary rounded-full h-6 transition-all duration-300">
+                        </div>
+                        <div class="w-1 bg-secondary rounded-full h-5 transition-all duration-300">
+                        </div>
+                        <div class="w-1 bg-secondary rounded-full h-3 transition-all duration-300">
+                        </div>
+                        <div class="w-1 bg-secondary rounded-full h-5 transition-all duration-300">
+                        </div>
+                        <div class="w-1 bg-secondary rounded-full h-7 transition-all duration-300">
+                        </div>
+                        <div class="w-1 bg-secondary rounded-full h-4 transition-all duration-300">
+                        </div>
+                        <div class="w-1 bg-secondary rounded-full h-2 transition-all duration-300">
+                        </div>
+                        <div class="w-1 bg-secondary rounded-full h-4 transition-all duration-300">
+                        </div>
+                        <div class="w-1 bg-secondary rounded-full h-3 transition-all duration-300">
+                        </div>
+                      </div>
+                      <span class="font-label-sm text-label-sm text-on-surface-variant font-mono tabular-nums">0:14</span>
+                    </div>
+                    <div class="flex items-center justify-between pt-0.5">
+                      <span class="font-body-sm text-[12px] text-on-surface-variant italic">Tono solemne, timbre cálido para ficción histórica.</span><a class="font-label-md text-label-md text-secondary hover:text-primary transition-colors font-medium" href="#">Cambiar voz</a>
+                    </div>
+                  </div>
+                  <!-- Primary Dynamic Synthesis Action Card -->
+                  <div class="bg-gradient-to-br from-tertiary-container via-primary-container to-primary p-6 rounded-3xl shadow-xl text-on-tertiary flex flex-col gap-5 border border-amber-900/30">
+                    <div class="flex items-start justify-between">
+                      <div class="flex flex-col gap-1">
+                        <div class="flex items-center gap-2">
+                          <span class="w-2.5 h-2.5 rounded-full bg-secondary-container animate-pulse"></span><span class="font-label-sm text-label-sm text-secondary-container tracking-wider uppercase font-semibold">Selección en Vivo del Pliego 3D</span>
+                        </div>
+                        <h3 class="font-headline-sm text-headline-sm text-on-tertiary font-serif font-medium mt-0.5" id="actionHeadingCount">
+                          12 capítulos seleccionados
+                        </h3>
+                      </div>
+                      <span class="bg-white/10 text-secondary-fixed text-xs px-2.5 py-1 rounded-full font-mono font-medium backdrop-blur-md" id="actionCalculatedTime">~9h 13m</span>
+                    </div>
+                    <!-- Live Batch Buttons -->
+                    <div class="flex items-center gap-3 pt-1">
+                      <button class="text-xs text-secondary-container hover:text-white underline transition-colors cursor-pointer" id="bookSelectAllBtn">
+                        Marcar todos (0)
+                      </button>
+                      <span class="text-white/20">•</span>
+                      <button class="text-xs text-amber-200/80 hover:text-white underline transition-colors cursor-pointer" id="bookClearAuxBtn">
+                        Desmarcar prólogo
+                      </button>
+                    </div>
+                    <!-- Primary Synthesis Button -->
+                    <button class="w-full py-3.5 px-6 rounded-xl bg-secondary hover:bg-on-secondary-container text-on-secondary font-label-lg text-label-lg font-bold flex items-center justify-center gap-2.5 shadow-lg hover:shadow-secondary/30 transition-all active:scale-[0.99] cursor-pointer" id="startSynthesisBtn">
+                      <span class="material-symbols-outlined text-[20px]">graphic_eq</span><span id="synthesisBtnText" class="">Procesar capítulos seleccionados (12)</span>
+                    </button>
+                  </div>
+                  <!-- Editorial Hints & Additional Tools -->
+                  <!-- Secondary Production Toolbar -->
+                  <div class="flex flex-wrap items-center justify-between gap-3 pt-1">
+                    <div class="flex items-center gap-2.5">
+                      <button class="px-3.5 py-2 rounded-xl bg-surface-container hover:bg-surface-container-high text-primary font-label-md text-label-md font-semibold flex items-center gap-1.5 transition-colors cursor-pointer">
+                        <span class="material-symbols-outlined text-[17px]">tune</span>Configuración de audio
+                      </button>
+                      <button class="px-3.5 py-2 rounded-xl bg-surface-container hover:bg-surface-container-high text-primary font-label-md text-label-md font-semibold flex items-center gap-1.5 transition-colors cursor-pointer">
+                        <span class="material-symbols-outlined text-[17px]">record_voice_over</span>Clonar voz
+                      </button>
+                    </div>
+                    <div class="flex items-center gap-1.5 text-on-surface-variant font-body-sm text-[12px]">
+                      <span class="material-symbols-outlined text-[15px] text-secondary">cloud_done</span>Listo para procesar
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+      <div id="listenbook-compatibility" aria-hidden="true">
+        <input id="dir-upload" type="file" webkitdirectory directory multiple hidden>
+        <button id="dir-upload-btn" type="button" hidden>
+        </button>
+        <input id="ref-audio-input" type="file" accept="audio/*" hidden>
+        <div id="portada_display" hidden>
+        </div>
+        <div id="reproducir_section" hidden>
+          <h2 id="reproducir_titulo">
+          </h2>
+          <img id="reproducir_cover">
+          <div id="reproductor_display">
+            <audio id="audio_player" controls>
+            </audio>
+          </div>
+        </div>
+        <div id="downloads_section" hidden>
+          <p id="downloads_empty">
+          </p>
+          <div id="downloads_list">
+          </div>
+        </div>
+      </div>
+    </section>
+    <footer class="w-full bg-[#FAF7F2] border-t border-[#E8E2D8] py-10">
+      <div class="max-w-7xl mx-auto px-6 lg:px-12 flex flex-col md:flex-row items-center justify-between gap-6">
+        <div class="flex items-center gap-3">
+          <span class="font-headline-sm text-headline-sm text-[#2C1810] leading-none">ListenBook</span><span class="text-[#CBC0AF]">•</span><span class="font-body-sm text-body-sm text-[#82746F]">Transformación literaria artesanal impulsada por IA neural.</span>
+        </div>
+        <div class="flex items-center gap-6 font-label-md text-label-md text-[#504440]">
+          <span class="hover:text-[#2C1810] transition-colors cursor-pointer">Manual de Pronunciación</span><span class="hover:text-[#2C1810] transition-colors cursor-pointer">Privacidad Editorial</span><span class="hover:text-[#2C1810] transition-colors cursor-pointer">Documentación API</span>
+        </div>
+        <div class="font-label-sm text-label-sm text-[#82746F]">
+          © 2025 ListenBook. Fomentando el arte de la narración sonora.
+        </div>
+      </div>
+    </footer>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11">
+    </script>
+    <script type="module" src="scripts/book3d.js?v=1">
+    </script>
+    <script type="module" src="scripts/shelf.js?v=1">
+    </script>
+    <script type="module" src="scripts/main.js?v=50">
+    </script>
+  </body>
 </html>
