@@ -10,6 +10,7 @@ export function archivoSubido() {
 export function setTitle(text) {
     const el = document.getElementById('titulo_display');
     if (el) el.textContent = text || '';
+    try { window.__listenbookCurrentBookTitle = String(text || ''); } catch (error) { /* entorno sin window */ }
 }
 
 export function setAuthor(text) {
@@ -18,6 +19,7 @@ export function setAuthor(text) {
 }
 
 export function showCover(dataUrl, title) {
+    try { window.__listenbookCurrentBookCover = String(dataUrl || ''); } catch (error) { /* entorno sin window */ }
     const prototypeCover = document.getElementById('frontCover');
     if (prototypeCover) {
         const coverImage = prototypeCover.querySelector('img[data-alt], img[data-listenbook-cover], img');

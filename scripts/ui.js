@@ -1,4 +1,4 @@
-import { addDownloadLink } from './dom.js?v=4';
+import { addDownloadLink } from './dom.js?v=5';
 
 // UI wrappers (use global Swal from CDN)
 export function showProcessing(title = 'Procesando ebook', text = 'Espere a que termine el procesamiento.') {
@@ -33,6 +33,38 @@ function chapterDisplayTitle(chapter, index) {
 
 const GENERATED_AUDIO_STORAGE_KEY = 'listenbook.generated.audio.v2';
 const PLAYER_POSITION_STORAGE_KEY = 'listenbook.audio.player.position.v1';
+
+function getCurrentBookArtwork() {
+    const storedCover = String(window.__listenbookCurrentBookCover || '').trim();
+    if (storedCover) return storedCover;
+    const coverImage = document.querySelector('#frontCover img[data-listenbook-cover], #frontCover img');
+    return String(coverImage?.currentSrc || coverImage?.src || '').trim();
+}
+
+function getArtworkMimeType(artworkUrl) {
+    const match = String(artworkUrl || '').match(/^data:(image\/[a-z0-9.+-]+);/i);
+    return match ? match[1] : 'image/png';
+}
+
+function updateMediaSessionForChapter(bookTitle, chapterTitle, artworkUrl, filename) {
+    try {
+        if (!navigator.mediaSession || typeof MediaMetadata === 'undefined') return;
+        const artwork = artworkUrl ? [
+            { src: artworkUrl, sizes: '512x512', type: getArtworkMimeType(artworkUrl) },
+            { src: artworkUrl, sizes: '256x256', type: getArtworkMimeType(artworkUrl) },
+            { src: artworkUrl, sizes: '96x96', type: getArtworkMimeType(artworkUrl) }
+        ] : [];
+        navigator.mediaSession.metadata = new MediaMetadata({
+            title: chapterTitle || filename || 'ListenBook',
+            artist: bookTitle || '',
+            album: bookTitle || 'ListenBook',
+            artwork
+        });
+        try { navigator.mediaSession.playbackState = 'playing'; } catch (error) { /* opcional */ }
+    } catch (error) {
+        console.warn('[Media Session] No se pudo actualizar la portada:', error);
+    }
+}
 
 function normalizeAudioUrl(url) {
     try {
@@ -298,10 +330,18 @@ function playGeneratedAudio(audio, title, bookIdentity = '', chapterIndex = null
         chapterIndex: Number.isInteger(chapterIndex) ? chapterIndex : null
     };
     if (titleElement) titleElement.textContent = title || audio.filename || 'Capítulo';
+    updateMediaSessionForChapter(
+        window.__listenbookCurrentBookTitle || document.getElementById('titulo_display')?.textContent || '',
+        title,
+        getCurrentBookArtwork(),
+        audio.filename || ''
+    );
     player.src = audio.url;
     player.load();
     panel.classList.add('is-visible');
-    player.play().catch(() => {});
+    player.play().then(() => {
+        try { if (navigator.mediaSession) navigator.mediaSession.playbackState = 'playing'; } catch (error) { /* opcional */ }
+    }).catch(() => {});
 }
 
 function setGeneratedRowState(row, audio, title) {
