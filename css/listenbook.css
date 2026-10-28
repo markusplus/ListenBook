@@ -356,16 +356,16 @@
   width: 350px;
   height: 520px;
   transform-style: preserve-3d;
-  transition: transform 0.85s cubic-bezier(0.25, 1, 0.4, 1), width 0.85s cubic-bezier(0.25, 1, 0.4, 1);
+  transition: transform 1.8s cubic-bezier(0.2, 0.86, 0.28, 1), width 1.8s cubic-bezier(0.2, 0.86, 0.28, 1);
 }
 
 /* Fore-edge (bloque de papel apilado): ÚNICAMENTE en el lateral derecho, exactamente a la altura vertical de la cubierta sin desbordar */
 .page-block-fore-edge {
   position: absolute;
-  top: 3px;
-  bottom: 3px;
-  right: -15px;
-  width: 17px;
+  top: 5px;
+  bottom: 5px;
+  right: -4px;
+  width: 10px;
   background-color: #f6eedc;
   background-image: repeating-linear-gradient(
     to bottom,
@@ -375,13 +375,13 @@
     #e8ceb0 2.5px,
     #f8f0e1 3px
   );
-  border-right: 1.5px solid #c9b093;
+  border-right: 1px solid #c9b093;
   border-radius: 0 3px 3px 0;
   box-shadow: 
-    4px 6px 14px -1px rgba(38, 15, 5, 0.35),
-    inset 2px 0 4px rgba(0, 0, 0, 0.12);
-  transform: rotateY(20deg);
-  transform-origin: left center;
+    2px 4px 8px -2px rgba(38, 15, 5, 0.24),
+    inset 1px 0 3px rgba(0, 0, 0, 0.1);
+  transform: rotateY(5deg);
+  transform-origin: right center;
   transition: opacity 0.4s ease, transform 0.75s cubic-bezier(0.25, 1, 0.4, 1);
   z-index: 5;
 }
@@ -395,12 +395,13 @@
 /* Tapa frontal con articulación de bisagra en el lomo izquierdo */
 .book-cover-front {
   position: absolute;
-  inset: 0;
+  inset: 0 auto 0 0;
+  width: 350px;
   transform-origin: left center;
   transform-style: preserve-3d;
   border-radius: 4px 10px 10px 4px;
   box-shadow: 14px 18px 36px -6px rgba(38, 15, 5, 0.42), 2px 2px 10px rgba(38, 15, 5, 0.2);
-  transition: transform 0.85s cubic-bezier(0.25, 1, 0.4, 1), box-shadow 0.85s cubic-bezier(0.25, 1, 0.4, 1);
+  transition: transform 1.8s cubic-bezier(0.2, 0.86, 0.28, 1), box-shadow 1.8s cubic-bezier(0.2, 0.86, 0.28, 1);
   backface-visibility: hidden;
   z-index: 30;
 }
@@ -464,8 +465,8 @@
     0 22px 40px -8px rgba(35, 13, 4, 0.45),
     0 8px 18px -4px rgba(35, 13, 4, 0.25),
     inset 0 1px 2px rgba(255, 230, 200, 0.2);
-  transition: opacity 0.6s cubic-bezier(0.25, 1, 0.4, 1) 0.15s, transform 0.85s cubic-bezier(0.25, 1, 0.4, 1);
-  transform: scale(0.97);
+  transition: opacity 1.55s cubic-bezier(0.2, 0.86, 0.28, 1), transform 1.8s cubic-bezier(0.2, 0.86, 0.28, 1);
+  transform: scale(0.985);
   z-index: 20;
 }
 
