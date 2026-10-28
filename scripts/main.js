@@ -1,5 +1,5 @@
 import { archivoSubido, setTitle, setAuthor, showCover, addDownloadLink, clearDownloads } from './dom.js?v=4';
-import { showProcessing, closeProcessing, showChapterSelectionModal, renderPrototypeChapterSelection, clearPrototypeChapterDemo, markChapterGenerated, restoreGeneratedAudioForBook } from './ui.js?v=17';
+import { showProcessing, closeProcessing, showChapterSelectionModal, renderPrototypeChapterSelection, clearPrototypeChapterDemo, markChapterGenerated, restoreGeneratedAudioForBook } from './ui.js?v=19';
 import { createProgressWidget, updateProgressWidget, removeProgressWidget } from './dom.js?v=4';
 import { Ebook, extraerCapitulos } from './ebook.js?v=2';
 import { ejecutarTTS } from './ttsProcess.js?v=15';

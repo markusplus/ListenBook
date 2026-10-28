@@ -216,10 +216,45 @@ function installPlaybackPanelDrag(panel) {
     });
 }
 
+function installPlaybackAutoAdvance(panel) {
+    const player = panel?.querySelector('audio');
+    if (!player || player.dataset.listenbookAutoAdvance === 'true') return;
+    player.dataset.listenbookAutoAdvance = 'true';
+    player.addEventListener('ended', () => {
+        const playback = window.__listenbookGeneratedPlayback;
+        if (!playback || !Number.isInteger(playback.chapterIndex)) return;
+        if (playback.bookIdentity && window.__listenbookCurrentBookId && playback.bookIdentity !== window.__listenbookCurrentBookId) return;
+
+        const nextIndex = playback.chapterIndex + 1;
+        const nextRow = document.querySelector(`#bookOpenVolume [data-chapter-index="${nextIndex}"]`);
+        let nextAudio = nextRow?.classList.contains('chapter-row-generated') ? {
+            url: nextRow.dataset.generatedAudioUrl,
+            filename: nextRow.dataset.generatedAudioFilename || ''
+        } : null;
+        let nextTitle = nextRow?.dataset.chapterTitle || '';
+
+        // Use the central state as a fallback when the next chapter is on a
+        // hidden page or its row has not been painted yet.
+        if (!nextAudio?.url) {
+            const state = readGeneratedAudioState();
+            const bookKey = generatedAudioBookKey(playback.bookIdentity || window.__listenbookCurrentBookId);
+            const storedAudio = state[bookKey]?.[String(nextIndex)];
+            if (storedAudio?.url) {
+                nextAudio = storedAudio;
+                const chapter = window.__listenbookChapterData?.all?.[nextIndex];
+                nextTitle = chapterDisplayTitle(chapter, nextIndex);
+            }
+        }
+        if (!nextAudio?.url) return;
+        playGeneratedAudio(nextAudio, nextTitle || `Capítulo ${nextIndex + 1}`, playback.bookIdentity, nextIndex);
+    });
+}
+
 function ensurePlaybackPanel() {
     let panel = document.getElementById('listenbook-audio-player');
     if (panel) {
         installPlaybackPanelDrag(panel);
+        installPlaybackAutoAdvance(panel);
         return panel;
     }
 
@@ -248,15 +283,20 @@ function ensurePlaybackPanel() {
     });
     document.body.appendChild(panel);
     installPlaybackPanelDrag(panel);
+    installPlaybackAutoAdvance(panel);
     return panel;
 }
 
-function playGeneratedAudio(audio, title) {
+function playGeneratedAudio(audio, title, bookIdentity = '', chapterIndex = null) {
     if (!audio || !audio.url) return;
     const panel = ensurePlaybackPanel();
     const player = panel.querySelector('audio');
     const titleElement = panel.querySelector('#listenbook-audio-player-chapter');
     if (!player) return;
+    window.__listenbookGeneratedPlayback = {
+        bookIdentity: bookIdentity || window.__listenbookCurrentBookId || '',
+        chapterIndex: Number.isInteger(chapterIndex) ? chapterIndex : null
+    };
     if (titleElement) titleElement.textContent = title || audio.filename || 'Capítulo';
     player.src = audio.url;
     player.load();
@@ -311,7 +351,7 @@ function setGeneratedRowState(row, audio, title) {
             playGeneratedAudio({
                 url: row.dataset.generatedAudioUrl,
                 filename: row.dataset.generatedAudioFilename
-            }, title);
+            }, title, window.__listenbookCurrentBookId, Number(row.dataset.chapterIndex));
         });
         row.appendChild(action);
     }
