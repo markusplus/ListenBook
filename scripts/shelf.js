@@ -129,6 +129,7 @@
       let dragCounter = 0;
 
       window.addEventListener('dragenter', function(e) {
+        if (!e.dataTransfer?.types?.includes('Files')) return;
         e.preventDefault();
         dragCounter++;
         if (dragCurtain) {
@@ -138,6 +139,7 @@
       });
 
       window.addEventListener('dragleave', function(e) {
+        if (!e.dataTransfer?.types?.includes('Files')) return;
         e.preventDefault();
         dragCounter--;
         if (dragCounter <= 0 && dragCurtain) {

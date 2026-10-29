@@ -18,6 +18,13 @@ export function setAuthor(text) {
     if (el) el.textContent = text || '';
 }
 
+export function setBookCollection(text) {
+    const value = text || 'Colección no especificada';
+    document.querySelectorAll('#bookSeriesLabel, #bookCoverSeriesLabel').forEach(el => {
+        el.textContent = value;
+    });
+}
+
 export function showCover(dataUrl, title) {
     try { window.__listenbookCurrentBookCover = String(dataUrl || ''); } catch (error) { /* entorno sin window */ }
     const prototypeCover = document.getElementById('frontCover');

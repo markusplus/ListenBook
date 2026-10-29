@@ -117,7 +117,7 @@
           }
       
     </script>
-    <link rel="stylesheet" href="css/listenbook.css?v=13">
+    <link rel="stylesheet" href="css/listenbook.css?v=18">
     <link rel="icon" type="image/svg+xml" href="resources/listenbook-icon.svg">
     <link rel="icon" type="image/png" sizes="192x192" href="resources/listenbook-icon-192.png?v=2">
     <link rel="apple-touch-icon" sizes="180x180" href="resources/listenbook-icon-180.png?v=2">
@@ -178,7 +178,7 @@
                 <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#82746F]">
                   <span class="w-1.5 h-1.5 rounded-full bg-[#8E4E00]"></span><span class="">Colección Activa • Estante Principal</span>
                 </div>
-                <span class="text-xs text-[#82746F]">5 Obras en formato editorial</span>
+                <span class="text-xs text-[#82746F]" id="libraryVolumeCount">0 obras en formato editorial</span>
               </div>
               <!-- Dropzone Target: Shelf cavity with tightly packed books -->
               <div class="w-full shelf-perspective-rack relative flex items-end justify-center min-h-[380px] md:min-h-[400px] pb-0 library-rack" id="shelf-dropzone-target">
@@ -386,7 +386,7 @@
                       <div class="w-16 h-0.5 bg-[#E2C7BE]/40 my-4">
                       </div>
                       <p class="font-body-sm text-[#E2C7BE]/80 text-xs italic font-serif max-w-xs">
-                        Trilogía de Escipión el Africano • Volumen II
+                        <span id="bookCoverSeriesLabel">Colección no especificada</span>
                       </p>
                     </div>
                     <div class="flex items-center justify-between text-[#E2C7BE] z-10">
@@ -883,7 +883,7 @@
                   <!-- Heading & Author Block -->
                   <div class="flex flex-col gap-2">
                     <div class="flex items-center gap-3">
-                      <span class="font-label-sm text-label-sm uppercase tracking-widest text-on-surface-variant font-semibold">Obra Seleccionada</span><span class="text-outline-variant">•</span><span class="font-label-sm text-label-sm text-secondary font-medium">Trilogía de Escipión Vol. II</span>
+                      <span class="font-label-sm text-label-sm uppercase tracking-widest text-on-surface-variant font-semibold">Obra Seleccionada</span><span class="text-outline-variant">•</span><span class="font-label-sm text-label-sm text-secondary font-medium" id="bookSeriesLabel">Colección no especificada</span>
                     </div>
                     <h1 id="titulo_display" class="font-display-lg text-[36px] sm:text-display-lg text-primary tracking-tight font-serif leading-tight mt-1">
                       Las legiones malditas
@@ -963,10 +963,10 @@
                   <!-- Secondary Production Toolbar -->
                   <div class="flex flex-wrap items-center justify-between gap-3 pt-1">
                     <div class="flex items-center gap-2.5">
-                      <button class="px-3.5 py-2 rounded-xl bg-surface-container hover:bg-surface-container-high text-primary font-label-md text-label-md font-semibold flex items-center gap-1.5 transition-colors cursor-pointer">
+                      <button class="px-3.5 py-2 rounded-xl bg-surface-container hover:bg-surface-container-high text-primary font-label-md text-label-md font-semibold flex items-center gap-1.5 transition-colors cursor-pointer" id="audio-settings-btn" type="button">
                         <span class="material-symbols-outlined text-[17px]">tune</span>Configuración de audio
                       </button>
-                      <button class="px-3.5 py-2 rounded-xl bg-surface-container hover:bg-surface-container-high text-primary font-label-md text-label-md font-semibold flex items-center gap-1.5 transition-colors cursor-pointer">
+                      <button class="px-3.5 py-2 rounded-xl bg-surface-container hover:bg-surface-container-high text-primary font-label-md text-label-md font-semibold flex items-center gap-1.5 transition-colors cursor-pointer" id="clone-voice-btn" type="button">
                         <span class="material-symbols-outlined text-[17px]">record_voice_over</span>Clonar voz
                       </button>
                     </div>
@@ -1004,6 +1004,64 @@
         </div>
       </div>
     </section>
+    <div aria-hidden="true" class="audio-settings-modal" id="audio-settings-modal">
+      <div aria-labelledby="audio-settings-title" aria-modal="true" class="audio-settings-dialog" role="dialog">
+        <div class="audio-settings-header">
+          <div>
+            <p class="audio-settings-eyebrow">OmniVoice · ComfyUI</p>
+            <h2 id="audio-settings-title">Configuración de generación</h2>
+            <p class="audio-settings-description">Estos parámetros se aplican a cada capítulo que envíes a ComfyUI.</p>
+          </div>
+          <button aria-label="Cerrar configuración de audio" class="audio-settings-close" id="audio-settings-close" type="button">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        <div class="audio-settings-body">
+          <section class="audio-settings-group">
+            <div aria-expanded="true" class="audio-settings-group-heading" data-audio-settings-toggle role="button" tabindex="0"><span class="material-symbols-outlined">tune</span><div><h3>Calidad y velocidad</h3><p>Equilibrio entre detalle, estabilidad y tiempo.</p></div><span class="material-symbols-outlined audio-settings-collapse-icon">expand_less</span></div>
+            <div class="audio-settings-grid">
+              <label class="audio-setting-field"><span>Pasos de inferencia <small>Más pasos mejora el detalle y tarda más.</small></span><input data-audio-setting="numStep" max="32" min="4" step="1" type="number" value="16"></label>
+              <label class="audio-setting-field"><span>Guidance scale <small>Fuerza con la que sigue la indicación.</small></span><input data-audio-setting="guidanceScale" max="6" min="0" step="0.1" type="number" value="2"></label>
+              <label class="audio-setting-field"><span>Velocidad <small>1.0 es la velocidad normal.</small></span><input data-audio-setting="speed" max="2" min="0.5" step="0.05" type="number" value="1"></label>
+              <label class="audio-setting-field"><span>T-Shift <small>Desplazamiento temporal del muestreo.</small></span><input data-audio-setting="tShift" max="1" min="0" step="0.01" type="number" value="0.1"></label>
+              <label class="audio-setting-field"><span>Duración forzada <small>0 mantiene la duración automática.</small></span><input data-audio-setting="duration" max="300" min="0" step="1" type="number" value="0"></label>
+            </div>
+          </section>
+          <section class="audio-settings-group">
+            <div aria-expanded="true" class="audio-settings-group-heading" data-audio-settings-toggle role="button" tabindex="0"><span class="material-symbols-outlined">record_voice_over</span><div><h3>Voz y pronunciación</h3><p>Idioma y modificadores admitidos por OmniVoice.</p></div><span class="material-symbols-outlined audio-settings-collapse-icon">expand_less</span></div>
+            <div class="audio-settings-grid">
+              <label class="audio-setting-field audio-setting-field-wide"><span>Voz de referencia <small>Solo aparecen los audios guardados en <code>default_audios</code>. Añade una voz con «Clonar voz».</small></span><div class="audio-voice-controls"><select data-audio-setting="voice" id="audio-voice-select"></select><button aria-label="Borrar voz seleccionada" class="audio-voice-delete" disabled id="audio-voice-delete" title="Las voces de ejemplo no se pueden borrar" type="button"><span class="material-symbols-outlined">delete</span></button></div><small class="audio-voice-status" id="audio-voice-status"></small></label>
+              <label class="audio-setting-field"><span>Idioma</span><select data-audio-setting="language"><option value="spanish">Español</option><option value="english">English</option><option value="chinese">中文</option></select></label>
+              <label class="audio-setting-field audio-setting-field-wide"><span>Instruct <small>Usa modificadores en inglés separados por coma: <code>male, low pitch</code>.</small></span><input data-audio-setting="instruct" placeholder="Vacío para usar la voz de referencia" type="text" value=""></label>
+              <label class="audio-setting-field audio-setting-checkbox"><span>Preprocesar el prompt <small>Normaliza el texto antes de generar.</small></span><input checked data-audio-setting="preprocessPrompt" type="checkbox"></label>
+              <label class="audio-setting-field audio-setting-checkbox"><span>Postprocesar el audio <small>Aplica el tratamiento final del modelo.</small></span><input checked data-audio-setting="postprocessOutput" type="checkbox"></label>
+            </div>
+          </section>
+          <section class="audio-settings-group">
+            <div aria-expanded="true" class="audio-settings-group-heading" data-audio-settings-toggle role="button" tabindex="0"><span class="material-symbols-outlined">auto_awesome</span><div><h3>Estabilidad y fragmentos</h3><p>Controles avanzados del flujo guardado en tu JSON.</p></div><span class="material-symbols-outlined audio-settings-collapse-icon">expand_less</span></div>
+            <div class="audio-settings-grid">
+              <label class="audio-setting-field"><span>Layer penalty factor</span><input data-audio-setting="layerPenaltyFactor" max="10" min="0" step="0.1" type="number" value="5"></label>
+              <label class="audio-setting-field"><span>Position temperature</span><input data-audio-setting="positionTemperature" max="10" min="0" step="0.1" type="number" value="5"></label>
+              <label class="audio-setting-field"><span>Class temperature</span><input data-audio-setting="classTemperature" max="10" min="0" step="0.1" type="number" value="0"></label>
+              <label class="audio-setting-field"><span>Duración de fragmento <small>Longitud de cada bloque de audio.</small></span><input data-audio-setting="audioChunkDuration" max="120" min="1" step="1" type="number" value="15"></label>
+              <label class="audio-setting-field"><span>Umbral de fragmentación <small>Activa el corte cuando el texto supera este valor.</small></span><input data-audio-setting="audioChunkThreshold" max="300" min="1" step="1" type="number" value="30"></label>
+              <label class="audio-setting-field audio-setting-checkbox"><span>Denoise <small>Reduce ruido durante la generación.</small></span><input checked data-audio-setting="denoise" type="checkbox"></label>
+            </div>
+          </section>
+          <section class="audio-settings-group audio-settings-seed-group">
+            <div aria-expanded="true" class="audio-settings-group-heading" data-audio-settings-toggle role="button" tabindex="0"><span class="material-symbols-outlined">casino</span><div><h3>Semilla</h3><p>Usa una semilla fija para repetir un resultado.</p></div><span class="material-symbols-outlined audio-settings-collapse-icon">expand_less</span></div>
+            <div class="audio-settings-seed-row">
+              <label class="audio-setting-field audio-setting-checkbox"><span>Semilla aleatoria</span><input checked data-audio-setting="randomSeed" type="checkbox"></label>
+              <label class="audio-setting-field"><span>Semilla fija</span><input data-audio-setting="seed" disabled max="2147483647" min="0" step="1" type="number" value="42"></label>
+            </div>
+          </section>
+        </div>
+        <div class="audio-settings-footer">
+          <button class="audio-settings-reset" id="audio-settings-reset" type="button">Restaurar valores del flujo</button>
+          <div class="audio-settings-actions"><button class="audio-settings-cancel" id="audio-settings-cancel" type="button">Cancelar</button><button class="audio-settings-save" id="audio-settings-save" type="button">Guardar ajustes</button></div>
+        </div>
+      </div>
+    </div>
     <div aria-hidden="true" class="fixed inset-0 z-[80] hidden items-center justify-center bg-black/35 p-4 backdrop-blur-sm" id="new-book-source-modal">
       <div aria-labelledby="new-book-source-title" aria-modal="true" class="w-full max-w-2xl rounded-2xl border border-[#E5DDD0] bg-[#FDF9F3] p-6 shadow-2xl" role="dialog">
         <div class="flex items-start justify-between gap-4">
@@ -1048,9 +1106,9 @@
     </script>
     <script type="module" src="scripts/book3d.js?v=1">
     </script>
-    <script type="module" src="scripts/shelf.js?v=2">
+    <script type="module" src="scripts/shelf.js?v=3">
     </script>
-    <script type="module" src="scripts/main.js?v=55">
+    <script type="module" src="scripts/main.js?v=68">
     </script>
   </body>
 </html>

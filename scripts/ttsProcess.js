@@ -8,7 +8,24 @@ let workflowSettingsPromise = null;
 const DEFAULT_WORKFLOW_SETTINGS = {
     referenceText: 'Para evitar el colapso, se administraban comprimidos de oxígeno artificial y se racionaba cada respiración. Fumar estaba estrictamente prohibido bajo el agua. Las condiciones higiénicas eran mínimas. Había solo un inodoro funcional ubicado en la parte delantera del submarino junto a los tubos lanzatorpedos.',
     language: 'spanish',
-    instruct: ''
+    instruct: '',
+    generation: {
+        seed: 42,
+        randomSeed: true,
+        numStep: 16,
+        guidanceScale: 2,
+        speed: 1,
+        duration: 0,
+        tShift: 0.1,
+        denoise: true,
+        preprocessPrompt: true,
+        postprocessOutput: true,
+        layerPenaltyFactor: 5,
+        positionTemperature: 5,
+        classTemperature: 0,
+        audioChunkDuration: 15,
+        audioChunkThreshold: 30
+    }
 };
 
 // Sustituciones para mejorar la pronunciación. Se aplican únicamente al texto
@@ -75,10 +92,28 @@ async function loadWorkflowSettings() {
                     ? generateNode.widgets_values : [];
                 const transcript = promptNode && Array.isArray(promptNode.widgets_values)
                     ? String(promptNode.widgets_values[0] || '') : '';
+                const numberOr = (value, fallback) => Number.isFinite(Number(value)) ? Number(value) : fallback;
                 return {
                     referenceText: transcript.startsWith('AQUÍ ESCRIBE') ? DEFAULT_WORKFLOW_SETTINGS.referenceText : (transcript || DEFAULT_WORKFLOW_SETTINGS.referenceText),
                     language: String(values[1] || DEFAULT_WORKFLOW_SETTINGS.language).toLowerCase(),
-                    instruct: String(values[3] || DEFAULT_WORKFLOW_SETTINGS.instruct)
+                    instruct: String(values[3] || DEFAULT_WORKFLOW_SETTINGS.instruct),
+                    generation: {
+                        ...DEFAULT_WORKFLOW_SETTINGS.generation,
+                        seed: numberOr(values[4], DEFAULT_WORKFLOW_SETTINGS.generation.seed),
+                        numStep: numberOr(values[6], DEFAULT_WORKFLOW_SETTINGS.generation.numStep),
+                        guidanceScale: numberOr(values[7], DEFAULT_WORKFLOW_SETTINGS.generation.guidanceScale),
+                        speed: numberOr(values[8], DEFAULT_WORKFLOW_SETTINGS.generation.speed),
+                        duration: numberOr(values[9], DEFAULT_WORKFLOW_SETTINGS.generation.duration),
+                        tShift: numberOr(values[10], DEFAULT_WORKFLOW_SETTINGS.generation.tShift),
+                        denoise: values[11] !== false,
+                        preprocessPrompt: values[12] !== false,
+                        postprocessOutput: values[13] !== false,
+                        layerPenaltyFactor: numberOr(values[14], DEFAULT_WORKFLOW_SETTINGS.generation.layerPenaltyFactor),
+                        positionTemperature: numberOr(values[15], DEFAULT_WORKFLOW_SETTINGS.generation.positionTemperature),
+                        classTemperature: numberOr(values[16], DEFAULT_WORKFLOW_SETTINGS.generation.classTemperature),
+                        audioChunkDuration: numberOr(values[17], DEFAULT_WORKFLOW_SETTINGS.generation.audioChunkDuration),
+                        audioChunkThreshold: numberOr(values[18], DEFAULT_WORKFLOW_SETTINGS.generation.audioChunkThreshold)
+                    }
                 };
             } catch (error) {
                 console.warn('[ejecutarTTS] no se pudo leer la configuración del flujo:', error);
@@ -148,7 +183,11 @@ async function uploadReferenceAudio(base, blob, filename) {
 }
 
 function buildPrompt(text, audioName, referenceText, settings, options) {
-    const seed = options && Number.isInteger(options.seed) ? options.seed : Math.floor(Math.random() * 2147483647);
+    const generation = (options && options.audioSettings) || settings.generation || DEFAULT_WORKFLOW_SETTINGS.generation;
+    const value = (key, fallback) => generation[key] !== undefined && generation[key] !== null ? generation[key] : fallback;
+    const seed = value('randomSeed', true)
+        ? Math.floor(Math.random() * 2147483647)
+        : (Number.isInteger(Number(value('seed', options && options.seed))) ? Number(value('seed', options && options.seed)) : Math.floor(Math.random() * 2147483647));
     const prefix = options && options.outputPrefix ? options.outputPrefix : 'audio/ListenBook';
     return {
         '1': { class_type: 'LoadAudio', inputs: { audio: audioName } },
@@ -171,23 +210,23 @@ function buildPrompt(text, audioName, referenceText, settings, options) {
             inputs: {
                 model: ['2', 0],
                 text,
-                language: settings.language || 'spanish',
+                language: value('language', settings.language || 'spanish'),
                 ref_text: ['3', 1],
-                instruct: settings.instruct || '',
+                instruct: value('instruct', settings.instruct || ''),
                 seed,
-                num_step: options && Number.isInteger(options.numStep) ? options.numStep : 16,
-                guidance_scale: 2,
-                speed: 1,
-                duration: 0,
-                t_shift: 0.1,
-                denoise: true,
-                preprocess_prompt: true,
-                postprocess_output: true,
-                layer_penalty_factor: 5,
-                position_temperature: 5,
-                class_temperature: 0,
-                audio_chunk_duration: 15,
-                audio_chunk_threshold: 30,
+                num_step: Number(value('numStep', options && Number.isInteger(options.numStep) ? options.numStep : 16)),
+                guidance_scale: Number(value('guidanceScale', 2)),
+                speed: Number(value('speed', 1)),
+                duration: Number(value('duration', 0)),
+                t_shift: Number(value('tShift', 0.1)),
+                denoise: Boolean(value('denoise', true)),
+                preprocess_prompt: Boolean(value('preprocessPrompt', true)),
+                postprocess_output: Boolean(value('postprocessOutput', true)),
+                layer_penalty_factor: Number(value('layerPenaltyFactor', 5)),
+                position_temperature: Number(value('positionTemperature', 5)),
+                class_temperature: Number(value('classTemperature', 0)),
+                audio_chunk_duration: Number(value('audioChunkDuration', 15)),
+                audio_chunk_threshold: Number(value('audioChunkThreshold', 30)),
                 voice_clone_prompt: ['3', 0],
                 ref_audio: ['1', 0]
             }

@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
+import base64
+import binascii
 import json
 import os
 import re
 import shutil
 import tempfile
+import unicodedata
 import xml.etree.ElementTree as ET
 from urllib.error import HTTPError, URLError
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -16,6 +19,7 @@ SERVER_DATA_DIR = os.environ.get('LISTENBOOK_DATA_DIR', os.path.join(PROJECT_DIR
 BOOKS_DIR = os.path.join(SERVER_DATA_DIR, 'books')
 LIBRARY_FILE = os.path.join(SERVER_DATA_DIR, 'library.json')
 GENERATED_AUDIO_FILE = os.path.join(SERVER_DATA_DIR, 'generated-audio.json')
+DEFAULT_AUDIOS_DIR = os.path.join(PROJECT_DIR, 'default_audios')
 COMFYUI_VIEW_BASE = os.environ.get('LISTENBOOK_COMFYUI_VIEW', 'http://127.0.0.1:8188/view')
 COMFYUI_API_BASE = os.environ.get('LISTENBOOK_COMFYUI_API', 'http://127.0.0.1:8188')
 BIBLIOSES_OPDS_URL = os.environ.get('LISTENBOOK_BIBLIOSES_OPDS', 'http://200.234.229.26:8080/opds')
@@ -45,6 +49,72 @@ def write_json_file(path, value):
     finally:
         if os.path.exists(temporary):
             os.unlink(temporary)
+
+
+def _audio_alias(relative_path):
+    """Create a readable, stable alias from a sample's folder and filename."""
+    normalized = relative_path.replace(os.sep, '/')
+    parts = normalized.rsplit('/', 1)
+    folder = parts[0] if len(parts) == 2 else ''
+    filename = parts[-1]
+    stem = os.path.splitext(filename)[0]
+    language_names = {
+        'esp': 'Español',
+        'es': 'Español',
+        'en': 'English',
+        'eng': 'English',
+        'fr': 'Français',
+        'de': 'Deutsch',
+        'it': 'Italiano',
+        'zh': '中文'
+    }
+    folder_parts = [item for item in folder.split('/') if item]
+    language_key = folder_parts[0].split('_', 1)[0].lower() if folder_parts else ''
+    language = language_names.get(language_key, folder_parts[0].replace('_', ' ').title() if folder_parts else '')
+    voice_name = stem.replace('_', ' ').replace('-', ' ').strip().title() or 'Voz'
+    suffix = ' (predeterminada)' if any('default' in item.lower() for item in folder_parts) else ''
+    return f'{language} · {voice_name}{suffix}' if language else f'{voice_name}{suffix}'
+
+
+def list_default_audios():
+    voices = []
+    if not os.path.isdir(DEFAULT_AUDIOS_DIR):
+        return voices
+    extensions = {'.wav', '.mp3', '.flac', '.ogg', '.m4a', '.aac'}
+    for root, _, files in os.walk(DEFAULT_AUDIOS_DIR):
+        for filename in files:
+            if os.path.splitext(filename)[1].lower() not in extensions:
+                continue
+            absolute = os.path.join(root, filename)
+            relative = os.path.relpath(absolute, DEFAULT_AUDIOS_DIR).replace(os.sep, '/')
+            voices.append(_voice_record(relative))
+    return sorted(voices, key=lambda voice: voice['alias'].casefold())
+
+
+def _voice_filename(name, original_filename):
+    """Build a safe filename while preserving the chosen capitalization."""
+    extension = os.path.splitext(str(original_filename or ''))[1].lower()
+    if extension not in {'.wav', '.mp3', '.flac', '.ogg', '.m4a', '.aac'}:
+        extension = '.wav'
+    value = unicodedata.normalize('NFKD', str(name or '')).encode('ascii', 'ignore').decode('ascii')
+    value = re.sub(r'\s+', '_', value.strip())
+    value = re.sub(r'[^A-Za-z0-9_-]+', '_', value)
+    value = re.sub(r'_+', '_', value).strip('._-')[:120]
+    if not value:
+        value = 'voz_clonada'
+    value = value[0].lower() + value[1:]
+    return f'{value}{extension}'
+
+
+def _voice_record(relative):
+    filename = os.path.basename(relative)
+    return {
+        'id': relative,
+        'alias': _audio_alias(relative),
+        'filename': filename,
+        'url': '/default_audios/' + quote(relative, safe='/'),
+        'deletable': relative.startswith('esp_clonadas/')
+    }
 
 
 def audio_proxy_target(path):
@@ -183,6 +253,46 @@ class ListenBookHandler(SimpleHTTPRequestHandler):
         length = int(self.headers.get('Content-Length', '0'))
         return json.loads(self.rfile.read(length) or b'{}')
 
+    def _handle_default_audio_post(self):
+        try:
+            payload = self._read_request_json()
+            data_url = str(payload.get('dataUrl', ''))
+            name = str(payload.get('name', '')).strip()
+            original_filename = str(payload.get('filename', ''))
+            match = re.fullmatch(r'data:audio/[^;,]+;base64,(.+)', data_url, re.DOTALL)
+            if not match:
+                raise ValueError('El audio no tiene un formato válido')
+            if not name:
+                raise ValueError('El nombre de la voz es obligatorio')
+            encoded = match.group(1)
+            raw_audio = base64.b64decode(encoded, validate=True)
+            if not raw_audio:
+                raise ValueError('El audio está vacío')
+            if len(raw_audio) > 30 * 1024 * 1024:
+                raise ValueError('El audio supera el límite de 30 MB')
+
+            filename = _voice_filename(name, original_filename)
+            relative = f'esp_clonadas/{filename}'
+            target_dir = os.path.join(DEFAULT_AUDIOS_DIR, 'esp_clonadas')
+            target_path = os.path.join(target_dir, filename)
+            os.makedirs(target_dir, exist_ok=True)
+            if os.path.exists(target_path):
+                self._send_json({'error': 'Ya existe una voz con ese nombre.'}, status=409)
+                return
+
+            fd, temporary = tempfile.mkstemp(prefix='.listenbook-', suffix=os.path.splitext(filename)[1], dir=target_dir)
+            try:
+                with os.fdopen(fd, 'wb') as stream:
+                    stream.write(raw_audio)
+                os.replace(temporary, target_path)
+            finally:
+                if os.path.exists(temporary):
+                    os.unlink(temporary)
+
+            self._send_json({'voice': _voice_record(relative)})
+        except (ValueError, json.JSONDecodeError, OSError, binascii.Error) as error:
+            self._send_json({'error': str(error) or 'No se pudo guardar la voz.'}, status=400)
+
     def _proxy_comfyui(self, method, suffix, body=b''):
         """Forward ComfyUI HTTP calls through the ListenBook server."""
         forward_path = suffix[len('/api/comfy'):] if suffix.startswith('/api/comfy') else suffix
@@ -278,6 +388,23 @@ class ListenBookHandler(SimpleHTTPRequestHandler):
 
     def do_DELETE(self):
         path = urlsplit(self.path).path
+        match = re.fullmatch(r'/api/default-audios/(.+)', path)
+        if match:
+            relative = unquote(match.group(1)).replace('\\', '/')
+            if not re.fullmatch(r'esp_clonadas/[A-Za-z0-9_-]+\.(wav|mp3|flac|ogg|m4a|aac)', relative, re.IGNORECASE):
+                self.send_error(400, 'Voz no válida')
+                return
+            file_path = os.path.join(DEFAULT_AUDIOS_DIR, relative)
+            if not os.path.isfile(file_path):
+                self.send_error(404, 'Voz no encontrada')
+                return
+            try:
+                os.unlink(file_path)
+                self._send_json({'ok': True})
+            except OSError:
+                self.send_error(500, 'No se pudo borrar la voz')
+            return
+
         match = re.fullmatch(r'/api/library/([^/]+)', path)
         if not match:
             self.send_error(404)
@@ -359,6 +486,9 @@ class ListenBookHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         path = urlsplit(self.path).path
+        if path == '/api/default-audios':
+            self._send_json({'voices': list_default_audios()})
+            return
         if path == '/api/biblioses/search':
             self._handle_biblioses_get()
             return
@@ -377,6 +507,9 @@ class ListenBookHandler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         path = urlsplit(self.path).path
+        if path == '/api/default-audios':
+            self._handle_default_audio_post()
+            return
         if path.startswith('/api/comfy/'):
             length = int(self.headers.get('Content-Length', '0'))
             self._proxy_comfyui('POST', self.path, self.rfile.read(length))

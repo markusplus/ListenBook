@@ -59,6 +59,41 @@ Por ejemplo: `http://100.92.5.84:8080`.
 
 El puerto `8080` es ListenBook. El puerto `8188` es ComfyUI y no se utiliza como dirección principal de la aplicación.
 
+## Acceso desde la red local
+
+ListenBook escucha en todas las interfaces mediante `0.0.0.0:8080`. En este
+equipo, la dirección local actual es:
+
+```text
+http://192.168.1.138:8080
+```
+
+Para permitir el acceso únicamente desde la red local, ejecutar una vez en el
+PC servidor:
+
+```bash
+sudo ufw allow from 192.168.1.0/24 to any port 8080 proto tcp comment 'ListenBook LAN'
+```
+
+Después, desde otro dispositivo conectado a la misma red Wi-Fi o Ethernet, se
+abre `http://192.168.1.138:8080`. Si el router asigna otra IP al PC, se puede
+consultar con:
+
+```bash
+ip -4 addr show
+```
+
+ComfyUI permanece accesible solo desde el propio PC a través de
+`127.0.0.1:8188`; el teléfono usa el proxy de ListenBook.
+
+## Voces de referencia
+
+La categoría **Voz y pronunciación** de la configuración de audio lista automáticamente los archivos de audio que existan dentro de `default_audios/`. Las carpetas y nombres de archivo se convierten en alias legibles; por ejemplo, `esp_default/narrador_esp.wav` aparece como una voz predeterminada en español.
+
+El botón **Clonar voz** permite seleccionar otra muestra y escoger su nombre. ListenBook la guarda en `default_audios/esp_clonadas/`, convirtiendo los espacios en guiones bajos; por ejemplo, `Voz pastor de Granja` se guarda como `voz_pastor_de_Granja.wav`. El selector solo muestra archivos existentes en esa carpeta y en las carpetas de voces de ejemplo. Las voces clonadas tienen un botón de borrado; las voces de ejemplo están protegidas. La voz seleccionada se usa sin mostrar un diálogo adicional al iniciar la síntesis.
+
+El listado se sirve mediante `GET /api/default-audios` y las nuevas voces se guardan mediante `POST /api/default-audios`. El inventario de voces no se obtiene del `localStorage`; ahí solo se conserva la preferencia de la voz seleccionada. Tras actualizar el servidor, hay que reiniciar ListenBook y recargar la aplicación.
+
 ## Biblioteca Biblioses
 
 ListenBook consulta el catálogo OPDS de Calibre y no importa toda la biblioteca

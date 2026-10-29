@@ -1,8 +1,8 @@
-import { archivoSubido, setTitle, setAuthor, showCover, addDownloadLink, clearDownloads } from './dom.js?v=5';
-import { showProcessing, closeProcessing, showChapterSelectionModal, renderPrototypeChapterSelection, clearPrototypeChapterDemo, markChapterGenerated, restoreGeneratedAudioForBook } from './ui.js?v=22';
-import { createProgressWidget, updateProgressWidget, removeProgressWidget } from './dom.js?v=5';
-import { Ebook, extraerCapitulos } from './ebook.js?v=2';
-import { ejecutarTTS } from './ttsProcess.js?v=15';
+import { archivoSubido, setTitle, setAuthor, setBookCollection, showCover, addDownloadLink, clearDownloads } from './dom.js?v=6';
+import { showProcessing, closeProcessing, showChapterSelectionModal, renderPrototypeChapterSelection, clearPrototypeChapterDemo, markChapterGenerated, restoreGeneratedAudioForBook, toast } from './ui.js?v=22';
+import { createProgressWidget, updateProgressWidget, removeProgressWidget } from './dom.js?v=6';
+import { Ebook, extraerCapitulos } from './ebook.js?v=3';
+import { ejecutarTTS } from './ttsProcess.js?v=17';
 
 // El listado inicial del Stitch es solo una maqueta. La aplicación debe
 // mostrar exclusivamente los capítulos del EPUB cargado por el usuario.
@@ -25,6 +25,16 @@ function activateMenuItem(path) {
 }
 
 function activateConvertEpubMenu() { activateMenuItem('convertir-epub'); }
+
+function formatBookCollection(ebook) {
+    const series = String(ebook?.serie || ebook?.series || '').trim();
+    const rawIndex = String(ebook?.numeroSerie || ebook?.seriesIndex || '').trim();
+    if (!series) return 'Colección no especificada';
+    if (!rawIndex) return series;
+    const numericIndex = Number(rawIndex.replace(',', '.'));
+    const index = Number.isFinite(numericIndex) ? numericIndex : rawIndex;
+    return `${series} · Vol. ${index}`;
+}
 
 function showShelfView() {
     const header = document.getElementById('header_container');
@@ -154,6 +164,312 @@ const bibliosesSearchButton = document.getElementById('biblioses-search-button')
 const bibliosesStatus = document.getElementById('biblioses-status');
 const bibliosesResults = document.getElementById('biblioses-results');
 
+const AUDIO_SETTINGS_STORAGE_KEY = 'listenbook.audio.settings.v1';
+const DEFAULT_AUDIO_SETTINGS = {
+    voice: '/default_audios/esp_default/narrador_esp.wav',
+    language: 'spanish',
+    instruct: '',
+    seed: 42,
+    randomSeed: true,
+    numStep: 16,
+    guidanceScale: 2,
+    speed: 1,
+    duration: 0,
+    tShift: 0.1,
+    denoise: true,
+    preprocessPrompt: true,
+    postprocessOutput: true,
+    layerPenaltyFactor: 5,
+    positionTemperature: 5,
+    classTemperature: 0,
+    audioChunkDuration: 15,
+    audioChunkThreshold: 30
+};
+const audioSettingsButton = document.getElementById('audio-settings-btn');
+const audioSettingsModal = document.getElementById('audio-settings-modal');
+const audioSettingsClose = document.getElementById('audio-settings-close');
+const audioSettingsCancel = document.getElementById('audio-settings-cancel');
+const audioSettingsSave = document.getElementById('audio-settings-save');
+const audioSettingsReset = document.getElementById('audio-settings-reset');
+const cloneVoiceButton = document.getElementById('clone-voice-btn');
+const audioVoiceSelect = document.getElementById('audio-voice-select');
+const audioVoiceDeleteButton = document.getElementById('audio-voice-delete');
+const audioVoiceStatus = document.getElementById('audio-voice-status');
+let availableDefaultVoicesPromise = null;
+
+function readAudioSettings() {
+    try {
+        const stored = JSON.parse(localStorage.getItem(AUDIO_SETTINGS_STORAGE_KEY) || '{}');
+        return { ...DEFAULT_AUDIO_SETTINGS, ...(stored && typeof stored === 'object' ? stored : {}) };
+    } catch (error) {
+        return { ...DEFAULT_AUDIO_SETTINGS };
+    }
+}
+
+function writeAudioSettings(settings) {
+    try { localStorage.setItem(AUDIO_SETTINGS_STORAGE_KEY, JSON.stringify(settings)); } catch (error) { /* storage unavailable */ }
+}
+
+function suggestedVoiceName(filename) {
+    const stem = String(filename || '').replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim();
+    return stem || 'Voz clonada';
+}
+
+async function askClonedVoiceName(filename) {
+    const suggested = suggestedVoiceName(filename);
+    if (typeof Swal === 'undefined') {
+        const value = window.prompt('Nombre de la voz', suggested);
+        return value ? value.trim() : null;
+    }
+    const result = await Swal.fire({
+        title: 'Guardar voz clonada',
+        input: 'text',
+        inputLabel: 'Nombre de la voz',
+        inputValue: suggested,
+        inputPlaceholder: 'Ejemplo: Voz pastor de Granja',
+        showCancelButton: true,
+        confirmButtonText: 'Guardar voz',
+        cancelButtonText: 'Cancelar',
+        inputValidator: value => !String(value || '').trim() ? 'Escribe un nombre para la voz.' : undefined
+    });
+    return result.isConfirmed && result.value ? String(result.value).trim() : null;
+}
+
+async function uploadClonedVoice(dataUrl, name, filename) {
+    const response = await fetch('/api/default-audios', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dataUrl, name, filename })
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || !payload.voice) {
+        throw new Error(payload.error || `No se pudo guardar la voz (${response.status}).`);
+    }
+    return payload.voice;
+}
+
+function populateAudioVoiceOptions(voices, selectedVoice = '') {
+    if (!audioVoiceSelect) return;
+    const options = [];
+    voices.forEach(voice => options.push({
+        value: voice.url,
+        label: voice.alias,
+        id: voice.id,
+        deletable: Boolean(voice.deletable)
+    }));
+    audioVoiceSelect.replaceChildren(...options.map(option => {
+        const element = document.createElement('option');
+        element.value = option.value;
+        element.textContent = option.label;
+        element.dataset.voiceId = option.id || '';
+        element.dataset.deletable = String(option.deletable);
+        return element;
+    }));
+    const preferred = selectedVoice || readAudioSettings().voice || DEFAULT_AUDIO_SETTINGS.voice;
+    audioVoiceSelect.value = options.some(option => option.value === preferred)
+        ? preferred
+        : (options[0]?.value || '');
+    updateAudioVoiceDeleteButton();
+    if (audioVoiceStatus) audioVoiceStatus.textContent = `${options.length} muestra(s) disponible(s) en default_audios.`;
+}
+
+function updateAudioVoiceDeleteButton() {
+    if (!audioVoiceDeleteButton || !audioVoiceSelect) return;
+    const option = audioVoiceSelect.selectedOptions?.[0];
+    const deletable = option?.dataset.deletable === 'true';
+    audioVoiceDeleteButton.disabled = !deletable;
+    audioVoiceDeleteButton.title = deletable ? 'Borrar esta voz clonada' : 'Las voces de ejemplo no se pueden borrar';
+}
+
+async function loadAvailableDefaultVoices(selectedVoice = '') {
+    if (!availableDefaultVoicesPromise) {
+        availableDefaultVoicesPromise = fetch('/api/default-audios', { cache: 'no-store' })
+            .then(response => response.ok ? response.json() : { voices: [] })
+            .then(data => Array.isArray(data.voices) ? data.voices : [])
+            .catch(error => {
+                console.warn('[Voz] No se pudo listar default_audios:', error);
+                return [];
+            });
+    }
+    const voices = await availableDefaultVoicesPromise;
+    populateAudioVoiceOptions(voices, selectedVoice);
+    return voices;
+}
+
+function audioSettingsControls() {
+    return audioSettingsModal ? Array.from(audioSettingsModal.querySelectorAll('[data-audio-setting]')) : [];
+}
+
+function applyAudioSettingsToForm(settings) {
+    audioSettingsControls().forEach(control => {
+        const key = control.dataset.audioSetting;
+        const value = settings[key];
+        if (control.type === 'checkbox') control.checked = Boolean(value);
+        else if (value !== undefined && value !== null) control.value = String(value);
+    });
+    const randomSeed = audioSettingsModal?.querySelector('[data-audio-setting="randomSeed"]');
+    const fixedSeed = audioSettingsModal?.querySelector('[data-audio-setting="seed"]');
+    if (fixedSeed) fixedSeed.disabled = Boolean(randomSeed?.checked);
+}
+
+function collectAudioSettingsFromForm() {
+    const settings = { ...DEFAULT_AUDIO_SETTINGS };
+    const integerKeys = new Set(['seed', 'numStep', 'duration', 'audioChunkDuration', 'audioChunkThreshold']);
+    audioSettingsControls().forEach(control => {
+        const key = control.dataset.audioSetting;
+        if (control.type === 'checkbox') settings[key] = control.checked;
+        else if (control.type === 'number') {
+            let value = Number(control.value);
+            if (!Number.isFinite(value)) value = Number(DEFAULT_AUDIO_SETTINGS[key]) || 0;
+            if (control.min !== '') value = Math.max(Number(control.min), value);
+            if (control.max !== '') value = Math.min(Number(control.max), value);
+            if (integerKeys.has(key)) value = Math.round(value);
+            settings[key] = value;
+        }
+        else settings[key] = control.value;
+    });
+    return settings;
+}
+
+function closeAudioSettings() {
+    if (!audioSettingsModal) return;
+    audioSettingsModal.classList.remove('is-visible');
+    audioSettingsModal.setAttribute('aria-hidden', 'true');
+}
+
+function openAudioSettings() {
+    if (!audioSettingsModal) return;
+    const settings = readAudioSettings();
+    applyAudioSettingsToForm(settings);
+    populateAudioVoiceOptions([], settings.voice);
+    loadAvailableDefaultVoices(settings.voice).catch(() => {});
+    audioSettingsModal.classList.add('is-visible');
+    audioSettingsModal.setAttribute('aria-hidden', 'false');
+    audioSettingsModal.querySelector('input, select')?.focus();
+}
+
+audioSettingsButton?.addEventListener('click', openAudioSettings);
+audioSettingsClose?.addEventListener('click', closeAudioSettings);
+audioSettingsCancel?.addEventListener('click', closeAudioSettings);
+audioSettingsSave?.addEventListener('click', () => {
+    const settings = collectAudioSettingsFromForm();
+    writeAudioSettings(settings);
+    closeAudioSettings();
+    toast('Ajustes de audio guardados');
+});
+audioSettingsReset?.addEventListener('click', () => {
+    applyAudioSettingsToForm(DEFAULT_AUDIO_SETTINGS);
+    populateAudioVoiceOptions([], DEFAULT_AUDIO_SETTINGS.voice);
+    loadAvailableDefaultVoices(DEFAULT_AUDIO_SETTINGS.voice).catch(() => {});
+});
+audioSettingsModal?.addEventListener('click', event => {
+    if (event.target === audioSettingsModal) closeAudioSettings();
+});
+audioSettingsModal?.addEventListener('keydown', event => {
+    if (event.key === 'Escape') closeAudioSettings();
+});
+audioSettingsModal?.querySelector('[data-audio-setting="randomSeed"]')?.addEventListener('change', event => {
+    const fixedSeed = audioSettingsModal.querySelector('[data-audio-setting="seed"]');
+    if (fixedSeed) fixedSeed.disabled = event.target.checked;
+});
+audioVoiceSelect?.addEventListener('change', event => {
+    updateAudioVoiceDeleteButton();
+    if (audioVoiceStatus) audioVoiceStatus.textContent = 'Se usará esta muestra en los próximos capítulos.';
+});
+
+audioVoiceDeleteButton?.addEventListener('click', async () => {
+    const option = audioVoiceSelect?.selectedOptions?.[0];
+    const voiceId = option?.dataset.voiceId || '';
+    if (!voiceId || option.dataset.deletable !== 'true') return;
+    const confirmed = typeof Swal === 'undefined'
+        ? window.confirm(`¿Borrar la voz «${option.textContent}»?`)
+        : (await Swal.fire({
+            icon: 'warning',
+            title: 'Borrar voz clonada',
+            text: `Se eliminará «${option.textContent}» de default_audios/esp_clonadas.`,
+            showCancelButton: true,
+            confirmButtonText: 'Borrar voz',
+            cancelButtonText: 'Cancelar'
+        })).isConfirmed;
+    if (!confirmed) return;
+    try {
+        const response = await fetch(`/api/default-audios/${encodeURIComponent(voiceId)}`, { method: 'DELETE' });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.error || `No se pudo borrar la voz (${response.status}).`);
+        const settings = readAudioSettings();
+        availableDefaultVoicesPromise = null;
+        const voices = await loadAvailableDefaultVoices();
+        const replacement = voices.find(voice => !voice.deletable) || voices[0];
+        settings.voice = replacement?.url || DEFAULT_AUDIO_SETTINGS.voice;
+        writeAudioSettings(settings);
+        populateAudioVoiceOptions(voices, settings.voice);
+        toast('Voz clonada borrada');
+    } catch (error) {
+        if (typeof Swal !== 'undefined') Swal.fire({ icon: 'error', title: 'No se pudo borrar la voz', text: error.message || String(error) });
+        else console.error('[Voz] No se pudo borrar la voz:', error);
+    }
+});
+
+cloneVoiceButton?.addEventListener('click', async () => {
+    const dataUrl = await pickReferenceAudio();
+    if (!dataUrl) return;
+    const filename = refAudioInput?.dataset.listenbookFilename || 'audio personalizado';
+    const name = await askClonedVoiceName(filename);
+    if (!name) return;
+    let loadingDialog = null;
+    try {
+        if (typeof Swal !== 'undefined') {
+            loadingDialog = Swal.fire({
+                title: 'Guardando voz clonada',
+                text: 'Se está copiando a default_audios/esp_clonadas.',
+                allowOutsideClick: false,
+                showConfirmButton: false,
+                didOpen: () => Swal.showLoading()
+            });
+        }
+        const voice = await uploadClonedVoice(dataUrl, name, filename);
+        const settings = readAudioSettings();
+        settings.voice = voice.url;
+        writeAudioSettings(settings);
+        availableDefaultVoicesPromise = null;
+        await loadAvailableDefaultVoices(voice.url);
+        if (loadingDialog) Swal.close();
+        toast(`Voz guardada como «${voice.filename}»`);
+    } catch (error) {
+        if (loadingDialog) Swal.close();
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({ icon: 'error', title: 'No se pudo guardar la voz', text: error.message || String(error) });
+        } else {
+            console.error('[Voz] No se pudo guardar la voz:', error);
+        }
+    }
+});
+audioSettingsModal?.querySelectorAll('[data-audio-settings-toggle]').forEach(toggle => {
+    const toggleGroup = () => {
+        const group = toggle.closest('.audio-settings-group');
+        if (!group) return;
+        const collapsed = group.classList.toggle('is-collapsed');
+        toggle.setAttribute('aria-expanded', String(!collapsed));
+        const icon = toggle.querySelector('.audio-settings-collapse-icon');
+        if (icon) icon.textContent = collapsed ? 'expand_more' : 'expand_less';
+    };
+    toggle.addEventListener('click', toggleGroup);
+    toggle.addEventListener('keydown', event => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        toggleGroup();
+    });
+});
+audioSettingsModal?.querySelectorAll('.audio-settings-group').forEach(group => {
+    group.classList.add('is-collapsed');
+    const toggle = group.querySelector('[data-audio-settings-toggle]');
+    if (toggle) {
+        toggle.setAttribute('aria-expanded', 'false');
+        const icon = toggle.querySelector('.audio-settings-collapse-icon');
+        if (icon) icon.textContent = 'expand_more';
+    }
+});
+
 function closeNewBookSourceChooser() {
     if (!newBookSourceModal) return;
     newBookSourceModal.classList.add('hidden');
@@ -282,9 +598,18 @@ function readStoredBooks() {
     }
 }
 
+function updateLibraryVolumeCount(books = readStoredBooks()) {
+    const element = document.getElementById('libraryVolumeCount');
+    if (!element) return;
+    const shelfVolumes = document.querySelectorAll('#shelf-dropzone-target .realistic-shelf-cluster > .tight-book:not(#btn-shelf-add)');
+    const count = shelfVolumes.length || (Array.isArray(books) ? books.length : 0);
+    element.textContent = `${count} ${count === 1 ? 'obra' : 'obras'} en formato editorial`;
+}
+
 function writeStoredBooks(books) {
     try { localStorage.setItem(BOOKS_STORAGE_KEY, JSON.stringify(books)); }
     catch (error) { console.warn('[Biblioteca] No se pudieron guardar los libros:', error); }
+    updateLibraryVolumeCount(books);
 }
 
 async function serverLibraryRequest(path, options = {}) {
@@ -526,6 +851,8 @@ function getShelfDimensions(record) {
 function initializeShelfSlots() {
     shelfSlots().forEach((slot, index) => {
         if (!slot.dataset.listenbookSlot) slot.dataset.listenbookSlot = String(index);
+        slot.setAttribute('draggable', 'true');
+        slot.setAttribute('aria-grabbed', 'false');
         if (!slot.dataset.listenbookDefaultCaptured) {
             slot.__listenbookDefaultHTML = slot.innerHTML;
             slot.__listenbookDefaultBookId = slot.dataset.bookId || '';
@@ -544,6 +871,8 @@ function createExtraShelfSlot(index) {
     slot.className = 'tight-book group relative';
     slot.dataset.listenbookSlot = String(index);
     slot.dataset.listenbookDynamic = 'true';
+    slot.setAttribute('draggable', 'true');
+    slot.setAttribute('aria-grabbed', 'false');
     cluster.insertBefore(slot, addSlot);
     return slot;
 }
@@ -576,19 +905,50 @@ function applyBookToShelf(record) {
         </div>
         <div class="absolute -top-8 left-1/2 -translate-x-1/2 text-[10px] font-label-sm font-semibold uppercase tracking-wider text-[#2C1810] px-2.5 py-0.5 rounded bg-white border border-[#E0D8CB] opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-sm">Abrir tomo</div>
         <button type="button" data-listenbook-delete="${escapeBookText(record.id)}" aria-label="Eliminar ${escapeBookText(title)}" class="absolute -top-3 -right-3 z-20 flex h-7 w-7 items-center justify-center rounded-full border border-[#E0D8CB] bg-white text-[#8E4E00] opacity-0 shadow-md transition-opacity group-hover:opacity-100 hover:bg-[#8E4E00] hover:text-white"><span class="material-symbols-outlined text-[16px]">delete</span></button>`;
+    updateLibraryVolumeCount();
     return slot;
 }
 
 function restoreShelfSlot(record) {
     const slot = shelfSlots().find(candidate => candidate.dataset.listenbookBookId === record.id);
     if (!slot) return;
-    if (slot.dataset.listenbookDynamic === 'true') { slot.remove(); return; }
+    if (slot.dataset.listenbookDynamic === 'true') {
+        slot.remove();
+        updateLibraryVolumeCount();
+        return;
+    }
     slot.innerHTML = slot.__listenbookDefaultHTML || '';
     slot.className = slot.__listenbookDefaultClassName || 'tight-book group';
     slot.dataset.bookId = slot.__listenbookDefaultBookId || '';
     delete slot.dataset.listenbookUserBook;
     delete slot.dataset.listenbookBookId;
     slot.setAttribute('title', slot.__listenbookDefaultTitle || '');
+    updateLibraryVolumeCount();
+}
+
+function shelfVolumeElements() {
+    return Array.from(document.querySelectorAll('#shelf-dropzone-target .realistic-shelf-cluster > .tight-book'))
+        .filter(slot => slot.id !== 'btn-shelf-add');
+}
+
+async function persistShelfOrder() {
+    const volumes = shelfVolumeElements();
+    const books = readStoredBooks();
+    const changed = [];
+    volumes.forEach((slot, index) => {
+        slot.dataset.listenbookSlot = String(index);
+        const bookId = slot.dataset.listenbookBookId;
+        if (!bookId) return;
+        const record = books.find(book => book.id === bookId);
+        if (!record || record.slotIndex === index) return;
+        record.slotIndex = index;
+        record.updatedAt = new Date().toISOString();
+        changed.push(record);
+    });
+    if (!changed.length) return;
+    writeStoredBooks(books);
+    await Promise.all(changed.map(record => persistBookToServer(record)));
+    toast('Orden de la estantería guardado');
 }
 
 function findNextBookSlot(books) {
@@ -700,6 +1060,7 @@ async function openStoredBook(record) {
 async function restoreStoredBooksOnShelf() {
     initializeShelfSlots();
     const books = readStoredBooks();
+    updateLibraryVolumeCount(books);
     let changed = false;
     books.forEach(record => {
         if (!Number.isInteger(record.slotIndex)) {
@@ -729,6 +1090,50 @@ async function restoreStoredBooksOnShelf() {
 
 const shelfStage = document.getElementById('shelf-dropzone-target');
 if (shelfStage) {
+    let draggedShelfVolume = null;
+    let shelfDropTarget = null;
+
+    const clearShelfDragState = () => {
+        draggedShelfVolume?.classList.remove('is-dragging');
+        draggedShelfVolume?.setAttribute('aria-grabbed', 'false');
+        shelfDropTarget?.classList.remove('shelf-drop-target');
+        draggedShelfVolume = null;
+        shelfDropTarget = null;
+    };
+
+    shelfStage.addEventListener('dragstart', event => {
+        const volume = event.target.closest('.tight-book');
+        if (!volume || volume.id === 'btn-shelf-add' || event.target.closest('button')) return;
+        draggedShelfVolume = volume;
+        draggedShelfVolume.classList.add('is-dragging');
+        draggedShelfVolume.setAttribute('aria-grabbed', 'true');
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', volume.dataset.listenbookBookId || volume.dataset.bookId || 'shelf-volume');
+    });
+
+    shelfStage.addEventListener('dragover', event => {
+        if (!draggedShelfVolume) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+        const target = event.target.closest('.tight-book');
+        if (!target || target === draggedShelfVolume || target.id === 'btn-shelf-add') return;
+        shelfDropTarget?.classList.remove('shelf-drop-target');
+        shelfDropTarget = target;
+        shelfDropTarget.classList.add('shelf-drop-target');
+        const bounds = target.getBoundingClientRect();
+        const insertBefore = event.clientX < bounds.left + bounds.width / 2;
+        target.parentElement.insertBefore(draggedShelfVolume, insertBefore ? target : target.nextSibling);
+    });
+
+    shelfStage.addEventListener('drop', event => {
+        if (!draggedShelfVolume) return;
+        event.preventDefault();
+        persistShelfOrder().catch(error => console.warn('[Biblioteca] No se pudo guardar el orden:', error));
+        clearShelfDragState();
+    });
+
+    shelfStage.addEventListener('dragend', clearShelfDragState);
+
     shelfStage.addEventListener('click', event => {
         const deleteButton = event.target.closest('[data-listenbook-delete]');
         if (deleteButton) { event.preventDefault(); event.stopImmediatePropagation(); deleteStoredBook(deleteButton.dataset.listenbookDelete).catch(error => console.error('[Biblioteca] Error eliminando tomo:', error)); return; }
@@ -826,6 +1231,7 @@ function pickReferenceAudio() {
                     refAudioInput.value = '';
                     return resolve(null);
                 }
+                refAudioInput.dataset.listenbookFilename = file.name || 'audio personalizado';
                 const reader = new FileReader();
                 reader.onload = () => {
                     refAudioInput.value = '';
@@ -1063,6 +1469,7 @@ if (fileInput) {
                 const libraryRecord = libraryResult && libraryResult.record;
                 setTitle(ebook.titulo);
                 setAuthor(ebook.autor);
+                setBookCollection(formatBookCollection(ebook));
                 const img = showCover(ebook.portada, ebook.titulo);
 
                 // La detección se hace al cargar el EPUB para que el libro abierto
@@ -1103,30 +1510,14 @@ if (fileInput) {
                     // restore simple click handler on the cover image
                 const runSynthesisForChapters = async (seleccionados) => {
                     const allCaps = (window.__listenbookChapterData || { all: [] }).all || [];
+                    const audioSettings = readAudioSettings();
                     try {
-                        // Ask the user whether they want to upload a reference audio file
-                        let referenceDataUrl = null;
-                        if (typeof Swal !== 'undefined') {
-                            const wantUpload = await Swal.fire({
-                                title: '¿Quieres subir un audio de referencia?',
-                                html: 'Puedes subir un archivo de audio (WAV) que servirá como referencia para la generación. Si cancelas, se usará un audio de ejemplo.',
-                                showCancelButton: true,
-                                confirmButtonText: 'Sí, subir archivo',
-                                cancelButtonText: 'No, usar ejemplo',
-                                allowOutsideClick: false
-                            });
-                            if (wantUpload.isConfirmed) {
-                                try {
-                                    if (typeof Swal !== 'undefined') Swal.fire({ title: 'Leyendo archivo', text: 'Por favor espera...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-                                    referenceDataUrl = await pickReferenceAudio();
-                                } finally {
-                                    try { if (typeof Swal !== 'undefined') Swal.close(); } catch (e) {}
-                                }
-                            }
-                        }
+                        const referenceDataUrl = null;
+                        const selectedVoicePath = audioSettings.voice || '/default_audios/esp_default/narrador_esp.wav';
+                        const selectedVoiceUrl = new URL(selectedVoicePath, window.location.href).toString();
 
                             console.log('[UI] invoking ejecutarTTS — selected chapters:', seleccionados.length, seleccionados.map(c => c.titulo || c.title || c.href));
-                            console.log('[UI] referenceDataUrl present?', !!referenceDataUrl);
+                            console.log('[UI] voz de referencia:', audioSettings.voice === 'custom' ? 'personalizada' : selectedVoicePath);
                             // clear previous downloads for a fresh run
                             try { clearDownloads(); } catch (e) {}
 
@@ -1144,13 +1535,8 @@ if (fileInput) {
                                     const result = await ejecutarTTS(ebook, [chap], {
                                         comfyuiBase: COMFYUI_BASE,
                                         referenceAudioDataUrl: referenceDataUrl,
-                                        // default example audio served from the ListenBook folder
-                                        referenceAudioUrl: (function(){
-                                            try {
-                                                // resolve relative to current page so it works whether Live Server serves ListenBook
-                                                return new URL('default_audios/esp_default/narrador_esp.wav', window.location.href).toString();
-                                            } catch(e) { return '/default_audios/esp_default/narrador_esp.wav'; }
-                                        })(),
+                                        referenceAudioUrl: selectedVoiceUrl,
+                                        audioSettings,
                                         clientTimeout: 0,
                                         pollInterval: 1500,
                                         timeout: 1000 * 60 * 10,
@@ -1396,6 +1782,7 @@ try {
                         try { showProcessing('Procesando carpeta', 'Extrayendo metadatos del EPUB...'); } catch(e){}
                         await ebook.parse();
                         try { closeProcessing(); } catch(e){}
+                        setBookCollection(formatBookCollection(ebook));
 
                         // Set cover and title in the reproducir area
                         try {

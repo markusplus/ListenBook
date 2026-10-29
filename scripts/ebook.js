@@ -4,6 +4,8 @@ export class Ebook {
         this.archivo = archivo;
         this.titulo = '';
         this.autor = '';
+        this.serie = '';
+        this.numeroSerie = '';
         this.portada = '';
         this.procesado = false;
     }
@@ -51,6 +53,39 @@ export class Ebook {
             };
             const title = getFirstText(dcNS, 'title') || '';
             const creator = getFirstText(dcNS, 'creator') || '';
+            const metaElements = Array.from(opfDoc.getElementsByTagName('meta').length
+                ? opfDoc.getElementsByTagName('meta')
+                : opfDoc.getElementsByTagNameNS('*', 'meta'));
+            const metaText = meta => (meta.getAttribute('content') || meta.textContent || '').trim();
+            const metaProperty = meta => (meta.getAttribute('property') || '').trim().toLowerCase();
+            const metaName = meta => (meta.getAttribute('name') || '').trim().toLowerCase();
+            let series = '';
+            let seriesIndex = '';
+
+            // Calibre EPUBs normally use calibre:series/calibre:series_index.
+            const calibreSeries = metaElements.find(meta => metaName(meta) === 'calibre:series');
+            const calibreSeriesIndex = metaElements.find(meta => metaName(meta) === 'calibre:series_index');
+            if (calibreSeries) series = metaText(calibreSeries);
+            if (calibreSeriesIndex) seriesIndex = metaText(calibreSeriesIndex);
+
+            // EPUB 3 can encode the same information with belongs-to-collection.
+            if (!series) {
+                const collections = metaElements.filter(meta => metaProperty(meta) === 'belongs-to-collection');
+                for (const collection of collections) {
+                    const collectionId = collection.getAttribute('id');
+                    const refinements = metaElements.filter(meta => {
+                        const refines = (meta.getAttribute('refines') || '').trim();
+                        return collectionId && refines === `#${collectionId}`;
+                    });
+                    const type = refinements.find(meta => metaProperty(meta) === 'collection-type');
+                    if (!type || metaText(type).toLowerCase() === 'series') {
+                        series = metaText(collection);
+                        const position = refinements.find(meta => metaProperty(meta) === 'group-position');
+                        if (position) seriesIndex = metaText(position);
+                        break;
+                    }
+                }
+            }
             // portada
             let coverId = null;
             const metaCover = Array.from(opfDoc.getElementsByTagName('meta')).find(m => (m.getAttribute('name') || '').toLowerCase() === 'cover' || (m.getAttribute('property') || '').toLowerCase() === 'cover');
@@ -89,6 +124,8 @@ export class Ebook {
             }
             this.titulo = title || '';
             this.autor = creator || '';
+            this.serie = series || '';
+            this.numeroSerie = seriesIndex || '';
             this.portada = coverDataUrl || '';
             this.procesado = true;
         } catch (err) {
