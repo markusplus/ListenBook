@@ -5,7 +5,9 @@ Aplicación web local para convertir libros **EPUB** en audiolibros. ListenBook 
 El servidor puede ejecutarse en un ordenador y la aplicación puede abrirse desde ese mismo equipo, desde otro dispositivo de la red local o a través de una red privada como Tailscale.
 
 <!-- CAPTURA PRINCIPAL: sustituye la ruta por una imagen real del proyecto. -->
-> 📸 **Captura pendiente:** añade aquí una imagen de la estantería principal, por ejemplo <code>docs/images/estanteria.png</code>.
+<img width="2104" height="1164" alt="image" src="https://github.com/user-attachments/assets/c80df5c3-11e3-420d-a8bb-93b7365dd71f" />
+
+<img width="2113" height="1150" alt="image" src="https://github.com/user-attachments/assets/66f07fb6-c462-4297-adda-cbcbe8f10b66" />
 
 ---
 
@@ -44,11 +46,9 @@ El servidor puede ejecutarse en un ordenador y la aplicación puede abrirse desd
 - Aplicación instalable como aplicación web progresiva (PWA).
 
 <!-- CAPTURAS DE FUNCIONALIDADES: sustituye estas marcas por imágenes cuando las tengas. -->
-> 📸 **Captura pendiente:** vista de capítulos y selección.
->
-> 📸 **Captura pendiente:** configuración de audio.
->
-> 📸 **Captura pendiente:** reproductor y progreso de generación.
+<img width="1920" height="1318" alt="image" src="https://github.com/user-attachments/assets/7838caec-4cb4-421e-959f-d26d2ddadd2b" />
+<img width="1914" height="1269" alt="image" src="https://github.com/user-attachments/assets/67c5693b-4196-4512-baf6-3e062d937415" />
+<img width="556" height="165" alt="image" src="https://github.com/user-attachments/assets/ba22a484-0fbf-425e-ad56-53fb74dffaf4" />
 
 ## Arquitectura
 
@@ -93,7 +93,7 @@ La compatibilidad concreta de ComfyUI y de los nodos puede depender de la versi�
 ### 1. Descargar el proyecto
 
 ~~~bash
-git clone <URL_DEL_REPOSITORIO> ListenBook
+git clone https://github.com/markusplus/ListenBook.git ListenBook
 cd ListenBook
 ~~~
 
