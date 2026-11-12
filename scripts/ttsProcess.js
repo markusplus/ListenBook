@@ -8,7 +8,24 @@ let workflowSettingsPromise = null;
 const DEFAULT_WORKFLOW_SETTINGS = {
     referenceText: 'Para evitar el colapso, se administraban comprimidos de oxígeno artificial y se racionaba cada respiración. Fumar estaba estrictamente prohibido bajo el agua. Las condiciones higiénicas eran mínimas. Había solo un inodoro funcional ubicado en la parte delantera del submarino junto a los tubos lanzatorpedos.',
     language: 'spanish',
-    instruct: ''
+    instruct: '',
+    generation: {
+        seed: 42,
+        randomSeed: true,
+        numStep: 16,
+        guidanceScale: 2,
+        speed: 1,
+        duration: 0,
+        tShift: 0.1,
+        denoise: true,
+        preprocessPrompt: true,
+        postprocessOutput: true,
+        layerPenaltyFactor: 5,
+        positionTemperature: 5,
+        classTemperature: 0,
+        audioChunkDuration: 15,
+        audioChunkThreshold: 30
+    }
 };
 
 // Sustituciones para mejorar la pronunciación. Se aplican únicamente al texto
@@ -75,10 +92,28 @@ async function loadWorkflowSettings() {
                     ? generateNode.widgets_values : [];
                 const transcript = promptNode && Array.isArray(promptNode.widgets_values)
                     ? String(promptNode.widgets_values[0] || '') : '';
+                const numberOr = (value, fallback) => Number.isFinite(Number(value)) ? Number(value) : fallback;
                 return {
                     referenceText: transcript.startsWith('AQUÍ ESCRIBE') ? DEFAULT_WORKFLOW_SETTINGS.referenceText : (transcript || DEFAULT_WORKFLOW_SETTINGS.referenceText),
                     language: String(values[1] || DEFAULT_WORKFLOW_SETTINGS.language).toLowerCase(),
-                    instruct: String(values[3] || DEFAULT_WORKFLOW_SETTINGS.instruct)
+                    instruct: String(values[3] || DEFAULT_WORKFLOW_SETTINGS.instruct),
+                    generation: {
+                        ...DEFAULT_WORKFLOW_SETTINGS.generation,
+                        seed: numberOr(values[4], DEFAULT_WORKFLOW_SETTINGS.generation.seed),
+                        numStep: numberOr(values[6], DEFAULT_WORKFLOW_SETTINGS.generation.numStep),
+                        guidanceScale: numberOr(values[7], DEFAULT_WORKFLOW_SETTINGS.generation.guidanceScale),
+                        speed: numberOr(values[8], DEFAULT_WORKFLOW_SETTINGS.generation.speed),
+                        duration: numberOr(values[9], DEFAULT_WORKFLOW_SETTINGS.generation.duration),
+                        tShift: numberOr(values[10], DEFAULT_WORKFLOW_SETTINGS.generation.tShift),
+                        denoise: values[11] !== false,
+                        preprocessPrompt: values[12] !== false,
+                        postprocessOutput: values[13] !== false,
+                        layerPenaltyFactor: numberOr(values[14], DEFAULT_WORKFLOW_SETTINGS.generation.layerPenaltyFactor),
+                        positionTemperature: numberOr(values[15], DEFAULT_WORKFLOW_SETTINGS.generation.positionTemperature),
+                        classTemperature: numberOr(values[16], DEFAULT_WORKFLOW_SETTINGS.generation.classTemperature),
+                        audioChunkDuration: numberOr(values[17], DEFAULT_WORKFLOW_SETTINGS.generation.audioChunkDuration),
+                        audioChunkThreshold: numberOr(values[18], DEFAULT_WORKFLOW_SETTINGS.generation.audioChunkThreshold)
+                    }
                 };
             } catch (error) {
                 console.warn('[ejecutarTTS] no se pudo leer la configuración del flujo:', error);
@@ -89,9 +124,21 @@ async function loadWorkflowSettings() {
     return workflowSettingsPromise;
 }
 
+function makeUuid() {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID();
+    }
+    // HTTP origins on a LAN/Tailscale connection may not expose
+    // crypto.randomUUID(). Keep the fallback valid for ComfyUI's prompt_id.
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, character => {
+        const random = Math.random() * 16 | 0;
+        const value = character === 'x' ? random : (random & 0x3 | 0x8);
+        return value.toString(16);
+    });
+}
+
 function makeClientId() {
-    if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
-    return `listenbook-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    return makeUuid();
 }
 
 function dataUrlToBlob(dataUrl) {
@@ -136,7 +183,11 @@ async function uploadReferenceAudio(base, blob, filename) {
 }
 
 function buildPrompt(text, audioName, referenceText, settings, options) {
-    const seed = options && Number.isInteger(options.seed) ? options.seed : Math.floor(Math.random() * 2147483647);
+    const generation = (options && options.audioSettings) || settings.generation || DEFAULT_WORKFLOW_SETTINGS.generation;
+    const value = (key, fallback) => generation[key] !== undefined && generation[key] !== null ? generation[key] : fallback;
+    const seed = value('randomSeed', true)
+        ? Math.floor(Math.random() * 2147483647)
+        : (Number.isInteger(Number(value('seed', options && options.seed))) ? Number(value('seed', options && options.seed)) : Math.floor(Math.random() * 2147483647));
     const prefix = options && options.outputPrefix ? options.outputPrefix : 'audio/ListenBook';
     return {
         '1': { class_type: 'LoadAudio', inputs: { audio: audioName } },
@@ -159,23 +210,23 @@ function buildPrompt(text, audioName, referenceText, settings, options) {
             inputs: {
                 model: ['2', 0],
                 text,
-                language: settings.language || 'spanish',
+                language: value('language', settings.language || 'spanish'),
                 ref_text: ['3', 1],
-                instruct: settings.instruct || '',
+                instruct: value('instruct', settings.instruct || ''),
                 seed,
-                num_step: options && Number.isInteger(options.numStep) ? options.numStep : 16,
-                guidance_scale: 2,
-                speed: 1,
-                duration: 0,
-                t_shift: 0.1,
-                denoise: true,
-                preprocess_prompt: true,
-                postprocess_output: true,
-                layer_penalty_factor: 5,
-                position_temperature: 5,
-                class_temperature: 0,
-                audio_chunk_duration: 15,
-                audio_chunk_threshold: 30,
+                num_step: Number(value('numStep', options && Number.isInteger(options.numStep) ? options.numStep : 16)),
+                guidance_scale: Number(value('guidanceScale', 2)),
+                speed: Number(value('speed', 1)),
+                duration: Number(value('duration', 0)),
+                t_shift: Number(value('tShift', 0.1)),
+                denoise: Boolean(value('denoise', true)),
+                preprocess_prompt: Boolean(value('preprocessPrompt', true)),
+                postprocess_output: Boolean(value('postprocessOutput', true)),
+                layer_penalty_factor: Number(value('layerPenaltyFactor', 5)),
+                position_temperature: Number(value('positionTemperature', 5)),
+                class_temperature: Number(value('classTemperature', 0)),
+                audio_chunk_duration: Number(value('audioChunkDuration', 15)),
+                audio_chunk_threshold: Number(value('audioChunkThreshold', 30)),
                 voice_clone_prompt: ['3', 0],
                 ref_audio: ['1', 0]
             }
@@ -217,39 +268,18 @@ function outputUrl(base, audio) {
         subfolder: audio.subfolder || '',
         type: audio.type || 'output'
     });
+    if (typeof window !== 'undefined' && window.location && /^https?:$/.test(window.location.protocol)) {
+        params.set('download', '0');
+        return `${window.location.origin}/api/audio?${params.toString()}`;
+    }
     return `${base}/view?${params.toString()}`;
-}
-
-const DURATION_STORAGE_KEY = 'listenbook.omnivoice.duration.samples';
-
-function getDurationEstimate() {
-    try {
-        const values = JSON.parse(localStorage.getItem(DURATION_STORAGE_KEY) || '[]')
-            .map(Number)
-            .filter(value => Number.isFinite(value) && value > 0);
-        if (values.length) {
-            const recent = values.slice(-5);
-            return recent.reduce((total, value) => total + value, 0) / recent.length;
-        }
-    } catch (e) {}
-    return 60;
-}
-
-function recordDuration(seconds) {
-    if (!Number.isFinite(seconds) || seconds <= 0) return;
-    try {
-        const values = JSON.parse(localStorage.getItem(DURATION_STORAGE_KEY) || '[]')
-            .map(Number)
-            .filter(value => Number.isFinite(value) && value > 0);
-        values.push(seconds);
-        localStorage.setItem(DURATION_STORAGE_KEY, JSON.stringify(values.slice(-10)));
-    } catch (e) {}
 }
 
 function openProgressSocket(base, clientId, promptId, onProgress) {
     if (typeof WebSocket === 'undefined') return null;
     const wsBase = base.replace(/^http/i, 'ws');
     const socket = new WebSocket(`${wsBase}/ws?clientId=${encodeURIComponent(clientId)}`);
+    socket._listenbookPromptId = promptId;
     const samples = [];
     let firstProgressAt = null;
 
@@ -257,7 +287,7 @@ function openProgressSocket(base, clientId, promptId, onProgress) {
         if (typeof event.data !== 'string') return;
         let message;
         try { message = JSON.parse(event.data); } catch (e) { return; }
-        if (message.type !== 'progress_state' || !message.data || message.data.prompt_id !== promptId) return;
+        if (message.type !== 'progress_state' || !message.data || message.data.prompt_id !== socket._listenbookPromptId) return;
 
         const nodes = message.data.nodes || {};
         const progress = nodes['4'] || Object.values(nodes).find(node => node && node.max > 0);
@@ -281,7 +311,7 @@ function openProgressSocket(base, clientId, promptId, onProgress) {
         const percent = Math.min(100, Math.max(0, (value / max) * 100));
         socket._listenbookHasProgress = true;
         socket._listenbookEtaSeconds = etaSeconds;
-        try { onProgress({ status: 'running', percent, value, max, etaSeconds }); } catch (e) {}
+        try { onProgress({ promptId: socket._listenbookPromptId, status: 'running', percent, value, max, etaSeconds }); } catch (e) {}
     };
     socket.onerror = () => {};
     return socket;
@@ -301,8 +331,7 @@ async function waitForHistory(base, promptId, progressSocket, options) {
     const pollInterval = options && typeof options.pollInterval === 'number' ? options.pollInterval : 1000;
     const onProgress = options && typeof options.onProgress === 'function' ? options.onProgress : () => {};
     const started = Date.now();
-    const estimatedTotalSeconds = getDurationEstimate();
-    try { onProgress({ promptId, status: 'running', percent: 0, etaSeconds: estimatedTotalSeconds }); } catch (e) {}
+    try { onProgress({ promptId, status: 'running', percent: 0, etaSeconds: null }); } catch (e) {}
     try {
         while (Date.now() - started < timeout) {
             const response = await fetch(`${base}/history/${encodeURIComponent(promptId)}`);
@@ -327,26 +356,29 @@ async function waitForHistory(base, promptId, progressSocket, options) {
                     }
                 }
                 if (files.length) {
-                    recordDuration((Date.now() - started) / 1000);
                     return { files, prompt_id: promptId, history: job };
                 }
             }
             if (!progressSocket || !progressSocket._listenbookHasProgress) {
-                const elapsed = (Date.now() - started) / 1000;
-                const percent = Math.min(99, (elapsed / estimatedTotalSeconds) * 100);
-                const etaSeconds = Math.max(0, estimatedTotalSeconds - elapsed);
-                try { onProgress({ promptId, status: 'running', percent, etaSeconds }); } catch (e) {}
+                // Without the ComfyUI WebSocket there is no reliable total
+                // duration. Do not invent an ETA from a previous chapter.
+                try { onProgress({ promptId, status: 'running', percent: 0, etaSeconds: null }); } catch (e) {}
             } else {
                 const etaSeconds = progressSocket && Number.isFinite(progressSocket._listenbookEtaSeconds)
-                    ? progressSocket._listenbookEtaSeconds
-                    : estimatedTotalSeconds;
+                    ? progressSocket._listenbookEtaSeconds : null;
                 try { onProgress({ promptId, status: 'running', etaSeconds }); } catch (e) {}
             }
             await new Promise(resolve => setTimeout(resolve, pollInterval));
         }
         throw new Error('La generación de audio ha superado el tiempo máximo de espera.');
     } finally {
-        if (progressSocket) progressSocket.close();
+        if (progressSocket) {
+            // Prevent delayed WebSocket messages from updating the widget of
+            // the next chapter after this prompt has already finished.
+            progressSocket.onmessage = null;
+            progressSocket.onerror = null;
+            progressSocket.close();
+        }
     }
 }
 
@@ -380,9 +412,15 @@ export async function ejecutarTTS(ebook, chapters, options) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt, client_id: clientId, prompt_id: promptId })
     });
-    const body = await response.json().catch(() => null);
+    const rawBody = await response.text().catch(() => '');
+    let body = null;
+    try { body = rawBody ? JSON.parse(rawBody) : null; } catch (error) { body = rawBody; }
     if (!response.ok || !body || !body.prompt_id) {
+        console.error('[ListenBook -> ComfyUI] Respuesta de /prompt:', response.status, body);
         throw new Error(`ComfyUI rechazó la petición (${response.status}): ${JSON.stringify(body)}`);
     }
+    // ComfyUI may return the canonical prompt id in the response. Bind the
+    // socket to that id before accepting any progress event.
+    if (progressSocket) progressSocket._listenbookPromptId = body.prompt_id;
     return waitForHistory(base, body.prompt_id, progressSocket, options);
 }

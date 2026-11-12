@@ -10,6 +10,7 @@ export function archivoSubido() {
 export function setTitle(text) {
     const el = document.getElementById('titulo_display');
     if (el) el.textContent = text || '';
+    try { window.__listenbookCurrentBookTitle = String(text || ''); } catch (error) { /* entorno sin window */ }
 }
 
 export function setAuthor(text) {
@@ -17,7 +18,26 @@ export function setAuthor(text) {
     if (el) el.textContent = text || '';
 }
 
+export function setBookCollection(text) {
+    const value = text || 'Colección no especificada';
+    document.querySelectorAll('#bookSeriesLabel, #bookCoverSeriesLabel').forEach(el => {
+        el.textContent = value;
+    });
+}
+
 export function showCover(dataUrl, title) {
+    try { window.__listenbookCurrentBookCover = String(dataUrl || ''); } catch (error) { /* entorno sin window */ }
+    const prototypeCover = document.getElementById('frontCover');
+    if (prototypeCover) {
+        const coverImage = prototypeCover.querySelector('img[data-alt], img[data-listenbook-cover], img');
+        if (coverImage && dataUrl) {
+            coverImage.src = dataUrl;
+            coverImage.alt = title || 'Portada del ebook';
+            coverImage.dataset.listenbookCover = 'true';
+        }
+        prototypeCover.setAttribute('aria-label', title || 'Abrir portada y seleccionar capítulos');
+        return prototypeCover;
+    }
     const portadaContainer = document.getElementById('portada_display');
     if (!portadaContainer) return;
     portadaContainer.innerHTML = '';
@@ -58,7 +78,22 @@ export function addDownloadLink(url, filename) {
         row.className = 'download-row';
         row.style.margin = '8px 0';
         const a = document.createElement('a');
-        a.href = url;
+        let downloadUrl = url;
+        try {
+            const parsed = new URL(url, window.location.href);
+            if (parsed.pathname === '/view' && parsed.searchParams.get('filename')) {
+                const proxy = new URL('/api/audio', window.location.origin);
+                ['filename', 'subfolder', 'type'].forEach(key => proxy.searchParams.set(key, parsed.searchParams.get(key) || (key === 'type' ? 'output' : '')));
+                proxy.searchParams.set('download', '1');
+                downloadUrl = proxy.toString();
+            } else if (parsed.pathname === '/api/audio') {
+                parsed.searchParams.set('download', '1');
+                downloadUrl = parsed.toString();
+            }
+        } catch (error) { /* conserva la URL original */ }
+        if (Array.from(list.querySelectorAll('a[data-listenbook-download-url]')).some(link => link.dataset.listenbookDownloadUrl === downloadUrl)) return;
+        a.href = downloadUrl;
+        a.dataset.listenbookDownloadUrl = downloadUrl;
         a.textContent = filename || url;
         a.download = filename || '';
         a.target = '_blank';
@@ -77,31 +112,37 @@ export function addDownloadLink(url, filename) {
 const logoDescargas = document.getElementById('logo_descargas');
 const tituloDrag = document.getElementsByClassName('titulo_drag')[0];
 
-logoDescargas.onclick = () => {
-    const list = document.getElementById('downloads_section');
-    tituloDrag.style.display = 'none';
-    if (list) list.style.display = 'block';
+if (logoDescargas) {
+    logoDescargas.onclick = () => {
+        const list = document.getElementById('downloads_section');
+        if (tituloDrag) tituloDrag.style.display = 'none';
+        if (list) list.style.display = 'block';
+    };
 }
 
-// Progress widget: floating box at top-right showing percent and status
+// Progress widget: floating status card styled in css/listenbook.css.
 let _progressWidget = null;
 let _progressInterval = null;
 export function createProgressWidget() {
     removeProgressWidget();
     const w = document.createElement('div');
     w.id = 'tts-progress-widget';
-    w.style.position = 'fixed';
-    w.style.top = '12px';
-    w.style.right = '12px';
-    w.style.zIndex = '9999';
-    w.style.background = 'rgba(0,0,0,0.75)';
-    w.style.color = '#fff';
-    w.style.padding = '10px 12px';
-    w.style.borderRadius = '8px';
-    w.style.fontFamily = 'sans-serif';
-    w.style.fontSize = '13px';
-    w.style.boxShadow = '0 2px 8px rgba(0,0,0,0.3)';
-    w.innerHTML = `<div id="tts-progress-percent" style="font-weight:700; font-size:14px;">0%</div><div id="tts-progress-label" style="color:#ddd; margin-top:4px; font-size:12px;">Preparando...</div>`;
+    w.className = 'tts-progress-widget';
+    w.setAttribute('role', 'status');
+    w.setAttribute('aria-live', 'polite');
+    w.innerHTML = `
+        <div class="tts-progress-widget-header">
+            <div class="tts-progress-widget-title">
+                <span class="material-symbols-outlined">graphic_eq</span>
+                <span>Generando audiolibro</span>
+            </div>
+            <span id="tts-progress-percent" class="tts-progress-percent">0%</span>
+        </div>
+        <div class="tts-progress-track" aria-hidden="true">
+            <div id="tts-progress-bar-fill" class="tts-progress-bar-fill"></div>
+        </div>
+        <div id="tts-progress-label" class="tts-progress-label">Preparando...</div>
+    `;
     document.body.appendChild(w);
     _progressWidget = w;
 }
@@ -111,7 +152,10 @@ export function updateProgressWidget({ percent = 0, label = '' } = {}) {
     try {
         const p = _progressWidget.querySelector('#tts-progress-percent');
         const l = _progressWidget.querySelector('#tts-progress-label');
-        if (p) p.textContent = `${Math.max(0, Math.min(100, Math.floor(percent)))}%`;
+        const fill = _progressWidget.querySelector('#tts-progress-bar-fill');
+        const safePercent = Math.max(0, Math.min(100, Math.floor(percent)));
+        if (p) p.textContent = `${safePercent}%`;
+        if (fill) fill.style.width = `${safePercent}%`;
         if (l) l.textContent = label || '';
     } catch (e) { }
 }

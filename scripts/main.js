@@ -1,14 +1,94 @@
-import { archivoSubido, setTitle, setAuthor, showCover, addDownloadLink, clearDownloads } from './dom.js';
-import { showProcessing, closeProcessing, showChapterSelectionModal } from './ui.js';
-import { createProgressWidget, updateProgressWidget, removeProgressWidget } from './dom.js';
-import { Ebook, extraerCapitulos } from './ebook.js';
-import { ejecutarTTS } from './ttsProcess.js?v=11';
+import { archivoSubido, setTitle, setAuthor, setBookCollection, showCover, addDownloadLink, clearDownloads } from './dom.js?v=6';
+import { showProcessing, closeProcessing, showChapterSelectionModal, renderPrototypeChapterSelection, clearPrototypeChapterDemo, markChapterGenerated, restoreGeneratedAudioForBook, toast } from './ui.js?v=23';
+import { createProgressWidget, updateProgressWidget, removeProgressWidget } from './dom.js?v=6';
+import { Ebook, extraerCapitulos } from './ebook.js?v=3';
+import { ejecutarTTS } from './ttsProcess.js?v=20';
+
+// El listado inicial del Stitch es solo una maqueta. La aplicación debe
+// mostrar exclusivamente los capítulos del EPUB cargado por el usuario.
+clearPrototypeChapterDemo();
+
+function activateMenuItem(path) {
+    const nav = document.querySelector('nav[data-active-classes]');
+    if (!nav) return;
+    const links = Array.from(nav.querySelectorAll('a[data-path]'));
+    const activeClasses = ['bg-white', 'text-[#2C1810]', 'font-bold', 'rounded-lg', 'shadow-sm', 'shadow-xs', 'font-semibold'];
+    links.forEach(link => {
+        activeClasses.forEach(className => link.classList.remove(className));
+        link.classList.add('text-[#504440]');
+    });
+    const activeLink = nav.querySelector(`a[data-path="${path}"]`);
+    if (activeLink) {
+        activeLink.classList.remove('text-[#504440]');
+        activeLink.classList.add('bg-white', 'text-[#2C1810]', 'font-bold', 'rounded-lg', 'shadow-sm');
+    }
+}
+
+function activateConvertEpubMenu() { activateMenuItem('convertir-epub'); }
+
+function formatBookCollection(ebook) {
+    const series = String(ebook?.serie || ebook?.series || '').trim();
+    const rawIndex = String(ebook?.numeroSerie || ebook?.seriesIndex || '').trim();
+    if (!series) return 'Colección no especificada';
+    if (!rawIndex) return series;
+    const numericIndex = Number(rawIndex.replace(',', '.'));
+    const index = Number.isFinite(numericIndex) ? numericIndex : rawIndex;
+    return `${series} · Vol. ${index}`;
+}
+
+function showShelfView() {
+    const header = document.getElementById('header_container');
+    const workspace = document.getElementById('configuracion_section');
+    const downloads = document.getElementById('downloads_section');
+    const shelf = document.getElementById('bookshelf-stage');
+    const tome = document.getElementById('tome-3d-stage');
+    if (workspace) workspace.style.display = 'none';
+    if (downloads) downloads.style.display = 'none';
+    if (header) header.style.display = 'block';
+    if (shelf) shelf.classList.remove('hidden');
+    if (tome) tome.classList.add('hidden');
+    activateMenuItem('mis-audiolibros');
+}
+
+function showConvertView() {
+    const header = document.getElementById('header_container');
+    const workspace = document.getElementById('configuracion_section');
+    const downloads = document.getElementById('downloads_section');
+    if (downloads) downloads.style.display = 'none';
+    if (window.__listenbookEbook) {
+        if (header) header.style.display = 'none';
+        if (workspace) workspace.style.display = 'block';
+    } else {
+        if (workspace) workspace.style.display = 'none';
+        if (header) header.style.display = 'block';
+        const shelf = document.getElementById('bookshelf-stage');
+        const tome = document.getElementById('tome-3d-stage');
+        if (shelf) shelf.classList.remove('hidden');
+        if (tome) tome.classList.add('hidden');
+    }
+    activateMenuItem('convertir-epub');
+}
+
+const appMenu = document.querySelector('nav[data-active-classes]');
+if (appMenu) {
+    appMenu.querySelectorAll('a[data-path]').forEach(link => {
+        link.addEventListener('click', event => {
+            event.preventDefault();
+            const path = link.dataset.path;
+            if (path === 'mis-audiolibros') showShelfView();
+            if (path === 'convertir-epub') showConvertView();
+            if (path === 'configuracion') window.openListenBookSettings?.();
+        });
+    });
+}
 
 const COMFYUI_HOST = (typeof window !== 'undefined' && window.location && window.location.hostname)
     ? window.location.hostname
     : '127.0.0.1';
 const COMFYUI_PORT = 8188;
-const COMFYUI_BASE = `http://${COMFYUI_HOST}:${COMFYUI_PORT}`;
+const COMFYUI_BASE = (typeof window !== 'undefined' && /^https?:$/.test(window.location.protocol))
+    ? `${window.location.origin}/api/comfy`
+    : `http://${COMFYUI_HOST}:${COMFYUI_PORT}`;
 // Kept as aliases for legacy download/debug helpers below.
 const GRADIO_BASE = COMFYUI_BASE;
 // proxy runs on port 3002 by default
@@ -34,20 +114,1091 @@ function activateMobileIfNeeded() {
 window.addEventListener('load', activateMobileIfNeeded);
 window.addEventListener('resize', () => { try { activateMobileIfNeeded(); } catch (e) {} });
 
-const dropArea = document.getElementById('upload_section');
+const dropArea = document.getElementById('upload_section') || document.getElementById('shelf-dropzone-target');
 if (dropArea) {
     dropArea.addEventListener('dragover', (event) => { event.preventDefault(); dropArea.classList.add('dragging'); });
     dropArea.addEventListener('dragleave', () => dropArea.classList.remove('dragging'));
-    dropArea.addEventListener('drop', (event) => {
-        event.preventDefault(); dropArea.classList.remove('dragging');
-        const files = event.dataTransfer.files;
-        const fileInput = document.getElementById('file-upload');
-        if (fileInput) fileInput.files = files;
+}
+
+// El arrastre usa exactamente el mismo flujo que el selector de archivos.
+// Se captura en window para impedir que el prototipo abra su tomo de ejemplo.
+window.addEventListener('drop', (event) => {
+    const files = Array.from(event.dataTransfer?.files || []).filter(file => /\.epub$/i.test(file.name));
+    if (!files.length) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    if (dropArea) dropArea.classList.remove('dragging');
+    const curtain = document.getElementById('drag-drop-curtain');
+    if (curtain) {
+        curtain.classList.add('opacity-0', 'pointer-events-none');
+        curtain.classList.remove('opacity-100');
+    }
+    const fileInput = document.getElementById('file-upload');
+    if (!fileInput) return;
+    try {
+        const transfer = new DataTransfer();
+        transfer.items.add(files[0]);
+        fileInput.files = transfer.files;
+        fileInput.dispatchEvent(new Event('change', { bubbles: true }));
         archivoSubido();
+    } catch (error) {
+        console.warn('[EPUB] No se pudo preparar el archivo arrastrado:', error);
+    }
+}, true);
+
+const fileInput = document.getElementById('file-upload');
+const reuploadButton = document.getElementById('reupload_button');
+const coverActionHint = document.getElementById('cover_action_hint');
+const backToMainButton = document.getElementById('back_to_main');
+const deleteLoadedBookButton = document.getElementById('delete_loaded_book');
+const deleteLoadedBookStatButton = document.getElementById('delete_loaded_book_stat');
+
+// Importación de tomos: archivo local o catálogo OPDS de Biblioses.
+const newBookSourceModal = document.getElementById('new-book-source-modal');
+const newBookSourceOptions = document.getElementById('new-book-source-options');
+const newBookSourceClose = document.getElementById('new-book-source-close');
+const newBookLocalOption = document.getElementById('new-book-local-option');
+const newBookBibliosesOption = document.getElementById('new-book-biblioses-option');
+const bibliosesBrowser = document.getElementById('biblioses-browser');
+const bibliosesSearchInput = document.getElementById('biblioses-search-input');
+const bibliosesSearchButton = document.getElementById('biblioses-search-button');
+const bibliosesStatus = document.getElementById('biblioses-status');
+const bibliosesResults = document.getElementById('biblioses-results');
+
+const AUDIO_SETTINGS_STORAGE_KEY = 'listenbook.audio.settings.v1';
+const DEFAULT_AUDIO_SETTINGS = {
+    voice: '/default_audios/esp_default/narrador_esp.wav',
+    language: 'spanish',
+    instruct: '',
+    seed: 42,
+    randomSeed: true,
+    numStep: 16,
+    guidanceScale: 2,
+    speed: 1,
+    duration: 0,
+    tShift: 0.1,
+    denoise: true,
+    preprocessPrompt: true,
+    postprocessOutput: true,
+    layerPenaltyFactor: 5,
+    positionTemperature: 5,
+    classTemperature: 0,
+    audioChunkDuration: 15,
+    audioChunkThreshold: 30
+};
+const audioSettingsButton = document.getElementById('audio-settings-btn');
+const audioSettingsModal = document.getElementById('audio-settings-modal');
+const audioSettingsClose = document.getElementById('audio-settings-close');
+const audioSettingsCancel = document.getElementById('audio-settings-cancel');
+const audioSettingsSave = document.getElementById('audio-settings-save');
+const audioSettingsReset = document.getElementById('audio-settings-reset');
+const cloneVoiceButton = document.getElementById('clone-voice-btn');
+const audioVoiceSelect = document.getElementById('audio-voice-select');
+const audioVoiceDeleteButton = document.getElementById('audio-voice-delete');
+const audioVoiceStatus = document.getElementById('audio-voice-status');
+let availableDefaultVoicesPromise = null;
+
+function readAudioSettings() {
+    try {
+        const stored = JSON.parse(localStorage.getItem(AUDIO_SETTINGS_STORAGE_KEY) || '{}');
+        return { ...DEFAULT_AUDIO_SETTINGS, ...(stored && typeof stored === 'object' ? stored : {}) };
+    } catch (error) {
+        return { ...DEFAULT_AUDIO_SETTINGS };
+    }
+}
+
+function writeAudioSettings(settings) {
+    try { localStorage.setItem(AUDIO_SETTINGS_STORAGE_KEY, JSON.stringify(settings)); } catch (error) { /* storage unavailable */ }
+}
+
+function suggestedVoiceName(filename) {
+    const stem = String(filename || '').replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim();
+    return stem || 'Voz clonada';
+}
+
+async function askClonedVoiceName(filename) {
+    const suggested = suggestedVoiceName(filename);
+    if (typeof Swal === 'undefined') {
+        const value = window.prompt('Nombre de la voz', suggested);
+        return value ? value.trim() : null;
+    }
+    const result = await Swal.fire({
+        title: 'Guardar voz clonada',
+        input: 'text',
+        inputLabel: 'Nombre de la voz',
+        inputValue: suggested,
+        inputPlaceholder: 'Ejemplo: Voz pastor de Granja',
+        showCancelButton: true,
+        confirmButtonText: 'Guardar voz',
+        cancelButtonText: 'Cancelar',
+        inputValidator: value => !String(value || '').trim() ? 'Escribe un nombre para la voz.' : undefined
+    });
+    return result.isConfirmed && result.value ? String(result.value).trim() : null;
+}
+
+async function uploadClonedVoice(dataUrl, name, filename) {
+    const response = await fetch('/api/default-audios', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dataUrl, name, filename })
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || !payload.voice) {
+        throw new Error(payload.error || `No se pudo guardar la voz (${response.status}).`);
+    }
+    return payload.voice;
+}
+
+function populateAudioVoiceOptions(voices, selectedVoice = '') {
+    if (!audioVoiceSelect) return;
+    const options = [];
+    voices.forEach(voice => options.push({
+        value: voice.url,
+        label: voice.alias,
+        id: voice.id,
+        deletable: Boolean(voice.deletable)
+    }));
+    audioVoiceSelect.replaceChildren(...options.map(option => {
+        const element = document.createElement('option');
+        element.value = option.value;
+        element.textContent = option.label;
+        element.dataset.voiceId = option.id || '';
+        element.dataset.deletable = String(option.deletable);
+        return element;
+    }));
+    const preferred = selectedVoice || readAudioSettings().voice || DEFAULT_AUDIO_SETTINGS.voice;
+    audioVoiceSelect.value = options.some(option => option.value === preferred)
+        ? preferred
+        : (options[0]?.value || '');
+    updateAudioVoiceDeleteButton();
+    if (audioVoiceStatus) audioVoiceStatus.textContent = `${options.length} muestra(s) disponible(s) en default_audios.`;
+}
+
+function updateAudioVoiceDeleteButton() {
+    if (!audioVoiceDeleteButton || !audioVoiceSelect) return;
+    const option = audioVoiceSelect.selectedOptions?.[0];
+    const deletable = option?.dataset.deletable === 'true';
+    audioVoiceDeleteButton.disabled = !deletable;
+    audioVoiceDeleteButton.title = deletable ? 'Borrar esta voz clonada' : 'Las voces de ejemplo no se pueden borrar';
+}
+
+async function loadAvailableDefaultVoices(selectedVoice = '') {
+    if (!availableDefaultVoicesPromise) {
+        availableDefaultVoicesPromise = fetch('/api/default-audios', { cache: 'no-store' })
+            .then(response => response.ok ? response.json() : { voices: [] })
+            .then(data => Array.isArray(data.voices) ? data.voices : [])
+            .catch(error => {
+                console.warn('[Voz] No se pudo listar default_audios:', error);
+                return [];
+            });
+    }
+    const voices = await availableDefaultVoicesPromise;
+    populateAudioVoiceOptions(voices, selectedVoice);
+    return voices;
+}
+
+function audioSettingsControls() {
+    return audioSettingsModal ? Array.from(audioSettingsModal.querySelectorAll('[data-audio-setting]')) : [];
+}
+
+function applyAudioSettingsToForm(settings) {
+    audioSettingsControls().forEach(control => {
+        const key = control.dataset.audioSetting;
+        const value = settings[key];
+        if (control.type === 'checkbox') control.checked = Boolean(value);
+        else if (value !== undefined && value !== null) control.value = String(value);
+    });
+    const randomSeed = audioSettingsModal?.querySelector('[data-audio-setting="randomSeed"]');
+    const fixedSeed = audioSettingsModal?.querySelector('[data-audio-setting="seed"]');
+    if (fixedSeed) fixedSeed.disabled = Boolean(randomSeed?.checked);
+}
+
+function collectAudioSettingsFromForm() {
+    const settings = { ...DEFAULT_AUDIO_SETTINGS };
+    const integerKeys = new Set(['seed', 'numStep', 'duration', 'audioChunkDuration', 'audioChunkThreshold']);
+    audioSettingsControls().forEach(control => {
+        const key = control.dataset.audioSetting;
+        if (control.type === 'checkbox') settings[key] = control.checked;
+        else if (control.type === 'number') {
+            let value = Number(control.value);
+            if (!Number.isFinite(value)) value = Number(DEFAULT_AUDIO_SETTINGS[key]) || 0;
+            if (control.min !== '') value = Math.max(Number(control.min), value);
+            if (control.max !== '') value = Math.min(Number(control.max), value);
+            if (integerKeys.has(key)) value = Math.round(value);
+            settings[key] = value;
+        }
+        else settings[key] = control.value;
+    });
+    return settings;
+}
+
+function closeAudioSettings() {
+    if (!audioSettingsModal) return;
+    audioSettingsModal.classList.remove('is-visible');
+    audioSettingsModal.setAttribute('aria-hidden', 'true');
+}
+
+function openAudioSettings() {
+    if (!audioSettingsModal) return;
+    const settings = readAudioSettings();
+    applyAudioSettingsToForm(settings);
+    populateAudioVoiceOptions([], settings.voice);
+    loadAvailableDefaultVoices(settings.voice).catch(() => {});
+    audioSettingsModal.classList.add('is-visible');
+    audioSettingsModal.setAttribute('aria-hidden', 'false');
+    audioSettingsModal.querySelector('input, select')?.focus();
+}
+
+audioSettingsButton?.addEventListener('click', openAudioSettings);
+audioSettingsClose?.addEventListener('click', closeAudioSettings);
+audioSettingsCancel?.addEventListener('click', closeAudioSettings);
+audioSettingsSave?.addEventListener('click', () => {
+    const settings = collectAudioSettingsFromForm();
+    writeAudioSettings(settings);
+    closeAudioSettings();
+    toast('Ajustes de audio guardados');
+});
+audioSettingsReset?.addEventListener('click', () => {
+    applyAudioSettingsToForm(DEFAULT_AUDIO_SETTINGS);
+    populateAudioVoiceOptions([], DEFAULT_AUDIO_SETTINGS.voice);
+    loadAvailableDefaultVoices(DEFAULT_AUDIO_SETTINGS.voice).catch(() => {});
+});
+audioSettingsModal?.addEventListener('click', event => {
+    if (event.target === audioSettingsModal) closeAudioSettings();
+});
+audioSettingsModal?.addEventListener('keydown', event => {
+    if (event.key === 'Escape') closeAudioSettings();
+});
+audioSettingsModal?.querySelector('[data-audio-setting="randomSeed"]')?.addEventListener('change', event => {
+    const fixedSeed = audioSettingsModal.querySelector('[data-audio-setting="seed"]');
+    if (fixedSeed) fixedSeed.disabled = event.target.checked;
+});
+audioVoiceSelect?.addEventListener('change', event => {
+    updateAudioVoiceDeleteButton();
+    if (audioVoiceStatus) audioVoiceStatus.textContent = 'Se usará esta muestra en los próximos capítulos.';
+});
+
+audioVoiceDeleteButton?.addEventListener('click', async () => {
+    const option = audioVoiceSelect?.selectedOptions?.[0];
+    const voiceId = option?.dataset.voiceId || '';
+    if (!voiceId || option.dataset.deletable !== 'true') return;
+    const confirmed = typeof Swal === 'undefined'
+        ? window.confirm(`¿Borrar la voz «${option.textContent}»?`)
+        : (await Swal.fire({
+            icon: 'warning',
+            title: 'Borrar voz clonada',
+            text: `Se eliminará «${option.textContent}» de default_audios/esp_clonadas.`,
+            showCancelButton: true,
+            confirmButtonText: 'Borrar voz',
+            cancelButtonText: 'Cancelar'
+        })).isConfirmed;
+    if (!confirmed) return;
+    try {
+        const response = await fetch(`/api/default-audios/${encodeURIComponent(voiceId)}`, { method: 'DELETE' });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.error || `No se pudo borrar la voz (${response.status}).`);
+        const settings = readAudioSettings();
+        availableDefaultVoicesPromise = null;
+        const voices = await loadAvailableDefaultVoices();
+        const replacement = voices.find(voice => !voice.deletable) || voices[0];
+        settings.voice = replacement?.url || DEFAULT_AUDIO_SETTINGS.voice;
+        writeAudioSettings(settings);
+        populateAudioVoiceOptions(voices, settings.voice);
+        toast('Voz clonada borrada');
+    } catch (error) {
+        if (typeof Swal !== 'undefined') Swal.fire({ icon: 'error', title: 'No se pudo borrar la voz', text: error.message || String(error) });
+        else console.error('[Voz] No se pudo borrar la voz:', error);
+    }
+});
+
+cloneVoiceButton?.addEventListener('click', async () => {
+    const dataUrl = await pickReferenceAudio();
+    if (!dataUrl) return;
+    const filename = refAudioInput?.dataset.listenbookFilename || 'audio personalizado';
+    const name = await askClonedVoiceName(filename);
+    if (!name) return;
+    let loadingDialog = null;
+    try {
+        if (typeof Swal !== 'undefined') {
+            loadingDialog = Swal.fire({
+                title: 'Guardando voz clonada',
+                text: 'Se está copiando a default_audios/esp_clonadas.',
+                allowOutsideClick: false,
+                showConfirmButton: false,
+                didOpen: () => Swal.showLoading()
+            });
+        }
+        const voice = await uploadClonedVoice(dataUrl, name, filename);
+        const settings = readAudioSettings();
+        settings.voice = voice.url;
+        writeAudioSettings(settings);
+        availableDefaultVoicesPromise = null;
+        await loadAvailableDefaultVoices(voice.url);
+        if (loadingDialog) Swal.close();
+        toast(`Voz guardada como «${voice.filename}»`);
+    } catch (error) {
+        if (loadingDialog) Swal.close();
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({ icon: 'error', title: 'No se pudo guardar la voz', text: error.message || String(error) });
+        } else {
+            console.error('[Voz] No se pudo guardar la voz:', error);
+        }
+    }
+});
+audioSettingsModal?.querySelectorAll('[data-audio-settings-toggle]').forEach(toggle => {
+    const toggleGroup = () => {
+        const group = toggle.closest('.audio-settings-group');
+        if (!group) return;
+        const collapsed = group.classList.toggle('is-collapsed');
+        toggle.setAttribute('aria-expanded', String(!collapsed));
+        const icon = toggle.querySelector('.audio-settings-collapse-icon');
+        if (icon) icon.textContent = collapsed ? 'expand_more' : 'expand_less';
+    };
+    toggle.addEventListener('click', toggleGroup);
+    toggle.addEventListener('keydown', event => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        toggleGroup();
+    });
+});
+audioSettingsModal?.querySelectorAll('.audio-settings-group').forEach(group => {
+    group.classList.add('is-collapsed');
+    const toggle = group.querySelector('[data-audio-settings-toggle]');
+    if (toggle) {
+        toggle.setAttribute('aria-expanded', 'false');
+        const icon = toggle.querySelector('.audio-settings-collapse-icon');
+        if (icon) icon.textContent = 'expand_more';
+    }
+});
+
+function closeNewBookSourceChooser() {
+    if (!newBookSourceModal) return;
+    newBookSourceModal.classList.add('hidden');
+    newBookSourceModal.classList.remove('flex');
+    newBookSourceModal.setAttribute('aria-hidden', 'true');
+}
+
+function showBibliosesStatus(message, visible = true) {
+    if (!bibliosesStatus) return;
+    bibliosesStatus.textContent = message;
+    bibliosesStatus.classList.toggle('hidden', !visible);
+}
+
+function openNewBookSourceChooser() {
+    if (!newBookSourceModal) return fileInput?.click();
+    newBookSourceModal.classList.remove('hidden');
+    newBookSourceModal.classList.add('flex');
+    newBookSourceModal.setAttribute('aria-hidden', 'false');
+    newBookSourceOptions?.classList.remove('hidden');
+    bibliosesBrowser?.classList.add('hidden');
+    if (bibliosesResults) bibliosesResults.replaceChildren();
+    showBibliosesStatus('', false);
+}
+
+window.openNewBookSourceChooser = openNewBookSourceChooser;
+newBookSourceClose?.addEventListener('click', closeNewBookSourceChooser);
+newBookSourceModal?.addEventListener('click', event => {
+    if (event.target === newBookSourceModal) closeNewBookSourceChooser();
+});
+newBookLocalOption?.addEventListener('click', () => {
+    closeNewBookSourceChooser();
+    fileInput?.click();
+});
+
+async function searchBiblioses() {
+    if (!bibliosesResults) return;
+    const query = String(bibliosesSearchInput?.value || '').trim();
+    bibliosesResults.replaceChildren();
+    showBibliosesStatus('Consultando Biblioses…');
+    try {
+        const response = await fetch(`/api/biblioses/search?q=${encodeURIComponent(query)}`, { cache: 'no-store' });
+        if (!response.ok) throw new Error(`Biblioses respondió ${response.status}`);
+        const data = await response.json();
+        const books = Array.isArray(data.books) ? data.books : [];
+        showBibliosesStatus(books.length ? `${books.length} libros disponibles` : 'No se encontraron libros.', true);
+        books.forEach(book => {
+            const row = document.createElement('button');
+            row.type = 'button';
+            row.className = 'flex w-full items-center gap-3 rounded-xl border border-[#E8E0D6] bg-white p-3 text-left hover:border-[#8E4E00] hover:bg-[#FFF9F2]';
+            const cover = document.createElement('div');
+            cover.className = 'flex h-14 w-10 shrink-0 items-center justify-center overflow-hidden rounded bg-[#F0E8DD] text-[#8E4E00]';
+            if (book.coverUrl) {
+                const image = document.createElement('img');
+                image.src = book.coverUrl;
+                image.alt = '';
+                image.className = 'h-full w-full object-cover';
+                cover.appendChild(image);
+            } else {
+                cover.textContent = 'EPUB';
+            }
+            const text = document.createElement('span');
+            text.className = 'min-w-0 flex-1';
+            const title = document.createElement('strong');
+            title.className = 'block truncate text-sm text-[#2C1810]';
+            title.textContent = book.title || 'Sin título';
+            const author = document.createElement('small');
+            author.className = 'block truncate text-xs text-[#82746F]';
+            author.textContent = book.author || 'Autor desconocido';
+            text.append(title, author);
+            const icon = document.createElement('span');
+            icon.className = 'material-symbols-outlined text-[#8E4E00]';
+            icon.textContent = 'download';
+            row.append(cover, text, icon);
+            row.addEventListener('click', () => importBibliosesBook(book));
+            bibliosesResults.appendChild(row);
+        });
+    } catch (error) {
+        console.error('[Biblioses] No se pudo consultar el catálogo:', error);
+        showBibliosesStatus('No se pudo consultar Biblioses. Revisa el terminal de ListenBook.', true);
+    }
+}
+
+async function importBibliosesBook(book) {
+    if (!book?.downloadUrl || !fileInput) return;
+    showBibliosesStatus(`Descargando «${book.title || 'EPUB'}»…`);
+    try {
+        const response = await fetch(`/api/biblioses/download?url=${encodeURIComponent(book.downloadUrl)}`);
+        if (!response.ok) throw new Error(`Descarga respondió ${response.status}`);
+        const blob = await response.blob();
+        const safeName = String(book.title || 'biblioses-book').replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'biblioses-book';
+        const file = new File([blob], `${safeName}.epub`, { type: 'application/epub+zip' });
+        const transfer = new DataTransfer();
+        transfer.items.add(file);
+        fileInput.files = transfer.files;
+        closeNewBookSourceChooser();
+        fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+    } catch (error) {
+        console.error('[Biblioses] No se pudo importar el EPUB:', error);
+        showBibliosesStatus('No se pudo descargar el EPUB seleccionado.', true);
+    }
+}
+
+newBookBibliosesOption?.addEventListener('click', () => {
+    newBookSourceOptions?.classList.add('hidden');
+    bibliosesBrowser?.classList.remove('hidden');
+    searchBiblioses();
+});
+bibliosesSearchButton?.addEventListener('click', searchBiblioses);
+bibliosesSearchInput?.addEventListener('keydown', event => {
+    if (event.key === 'Enter') searchBiblioses();
+});
+
+// Biblioteca local: metadatos en localStorage y el EPUB en IndexedDB.
+const BOOKS_STORAGE_KEY = 'listenbook.library.books.v1';
+const BOOK_DB_NAME = 'listenbook-library';
+const BOOK_FILE_STORE = 'files';
+const bookDbPromises = new Map();
+
+function userStorageScope() {
+    return String(window.listenbookAuth?.user?.id || 'anonymous');
+}
+
+function scopedBooksStorageKey() {
+    return `${BOOKS_STORAGE_KEY}.${userStorageScope()}`;
+}
+
+function readStoredBooks() {
+    try {
+        const scopedKey = scopedBooksStorageKey();
+        // Migrate the former single-user browser cache only to the first
+        // account. Other accounts must never inherit another user's shelf.
+        if (userStorageScope() === '1' && !localStorage.getItem(scopedKey)) {
+            const legacy = localStorage.getItem(BOOKS_STORAGE_KEY);
+            if (legacy) localStorage.setItem(scopedKey, legacy);
+        }
+        const value = JSON.parse(localStorage.getItem(scopedKey) || '[]');
+        return Array.isArray(value) ? value : [];
+    } catch (error) {
+        console.warn('[Biblioteca] No se pudieron leer los libros:', error);
+        return [];
+    }
+}
+
+function updateLibraryVolumeCount(books = readStoredBooks()) {
+    const element = document.getElementById('libraryVolumeCount');
+    if (!element) return;
+    const shelfVolumes = document.querySelectorAll('#shelf-dropzone-target .realistic-shelf-cluster > .tight-book:not(#btn-shelf-add)');
+    const count = shelfVolumes.length || (Array.isArray(books) ? books.length : 0);
+    element.textContent = `${count} ${count === 1 ? 'obra' : 'obras'} en formato editorial`;
+}
+
+function writeStoredBooks(books) {
+    try { localStorage.setItem(scopedBooksStorageKey(), JSON.stringify(books)); }
+    catch (error) { console.warn('[Biblioteca] No se pudieron guardar los libros:', error); }
+    updateLibraryVolumeCount(books);
+}
+
+async function serverLibraryRequest(path, options = {}) {
+    const response = await fetch(path, { cache: 'no-store', ...options });
+    if (!response.ok) throw new Error(`Servidor de biblioteca respondió ${response.status}`);
+    return response;
+}
+
+async function persistBookToServer(record, file = null) {
+    if (!record || !record.id) return false;
+    try {
+        await serverLibraryRequest(`/api/library/records/${encodeURIComponent(record.id)}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(record)
+        });
+        if (file) {
+            await serverLibraryRequest(`/api/library/files/${encodeURIComponent(record.id)}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/epub+zip' },
+                body: file
+            });
+        }
+        return true;
+    } catch (error) {
+        console.warn('[Biblioteca] No se pudo sincronizar el libro con el servidor:', error);
+        return false;
+    }
+}
+
+async function deleteBookFromServer(id) {
+    try {
+        await serverLibraryRequest(`/api/library/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    } catch (error) { console.warn('[Biblioteca] No se pudo borrar el libro del servidor:', error); }
+}
+
+async function syncLibraryWithServer() {
+    try {
+        const response = await serverLibraryRequest('/api/library');
+        const serverBooks = await response.json();
+        if (!Array.isArray(serverBooks)) return readStoredBooks();
+        const localBooks = readStoredBooks();
+        const serverKeys = new Set(serverBooks.map(book => book.id));
+        const serverBookKeys = new Set(serverBooks.map(book => book.bookKey || `${normalizeBookIdentity(book.title)}|${normalizeBookIdentity(book.author)}`));
+        for (const localBook of localBooks) {
+            if (serverKeys.has(localBook.id) || serverBookKeys.has(localBook.bookKey)) continue;
+            const file = await readBookFile(localBook.id);
+            if (file && await persistBookToServer(localBook, file)) {
+                serverBooks.push(localBook);
+                serverKeys.add(localBook.id);
+                serverBookKeys.add(localBook.bookKey);
+            }
+        }
+        writeStoredBooks(serverBooks);
+        serverBooks.forEach(book => applyBookToShelf(book));
+        return serverBooks;
+    } catch (error) {
+        console.warn('[Biblioteca] Servidor central no disponible; se usa la copia local:', error);
+        return readStoredBooks();
+    }
+}
+
+function createBookId() {
+    try { if (crypto && crypto.randomUUID) return crypto.randomUUID(); } catch (error) {}
+    return `book-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function openBookDatabase() {
+    const databaseName = `${BOOK_DB_NAME}-${userStorageScope()}`;
+    if (bookDbPromises.has(databaseName)) return bookDbPromises.get(databaseName);
+    if (!window.indexedDB) return Promise.resolve(null);
+    const databasePromise = new Promise((resolve, reject) => {
+        const request = indexedDB.open(databaseName, 1);
+        request.onupgradeneeded = () => {
+            if (!request.result.objectStoreNames.contains(BOOK_FILE_STORE)) request.result.createObjectStore(BOOK_FILE_STORE);
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    }).catch(error => { console.warn('[Biblioteca] IndexedDB no disponible:', error); return null; });
+    bookDbPromises.set(databaseName, databasePromise);
+    return databasePromise;
+}
+
+async function storeBookFile(id, file) {
+    try {
+        const db = await openBookDatabase();
+        if (!db) return false;
+        await new Promise((resolve, reject) => {
+            const tx = db.transaction(BOOK_FILE_STORE, 'readwrite');
+            tx.objectStore(BOOK_FILE_STORE).put(file, id);
+            tx.oncomplete = resolve;
+            tx.onerror = () => reject(tx.error);
+        });
+        return true;
+    } catch (error) { console.warn('[Biblioteca] No se pudo guardar el EPUB:', error); return false; }
+}
+
+async function readBookFile(id) {
+    try {
+        const db = await openBookDatabase();
+        const localFile = db ? await new Promise((resolve, reject) => {
+            const tx = db.transaction(BOOK_FILE_STORE, 'readonly');
+            const request = tx.objectStore(BOOK_FILE_STORE).get(id);
+            request.onsuccess = () => resolve(request.result || null);
+            request.onerror = () => reject(request.error);
+        }) : null;
+        try {
+            const response = await fetch(`/api/library/files/${encodeURIComponent(id)}`, { cache: 'no-store' });
+            if (response.ok) {
+                const blob = await response.blob();
+                const remoteFile = new File([blob], `${id}.epub`, { type: 'application/epub+zip' });
+                await storeBookFile(id, remoteFile);
+                return remoteFile;
+            }
+        } catch (error) { /* permite continuar con la copia local */ }
+        return localFile || null;
+    } catch (error) { console.warn('[Biblioteca] No se pudo leer el EPUB:', error); return null; }
+}
+
+async function removeBookFile(id) {
+    try {
+        const db = await openBookDatabase();
+        if (!db) return;
+        await new Promise((resolve, reject) => {
+            const tx = db.transaction(BOOK_FILE_STORE, 'readwrite');
+            tx.objectStore(BOOK_FILE_STORE).delete(id);
+            tx.oncomplete = resolve;
+            tx.onerror = () => reject(tx.error);
+        });
+    } catch (error) { console.warn('[Biblioteca] No se pudo borrar el EPUB:', error); }
+}
+
+function escapeBookText(value) {
+    return String(value || '').replace(/[&<>\'"]/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character]);
+}
+
+function rgbToHex(red, green, blue) {
+    return `#${[red, green, blue].map(value => Math.max(0, Math.min(255, Math.round(value))).toString(16).padStart(2, '0')).join('')}`;
+}
+
+function darkenHex(hex, factor = 0.62) {
+    const match = String(hex || '').match(/^#([\da-f]{6})$/i);
+    if (!match) return '#5B2D12';
+    const rgb = [0, 2, 4].map(offset => parseInt(match[1].slice(offset, offset + 2), 16));
+    return rgbToHex(rgb[0] * factor, rgb[1] * factor, rgb[2] * factor);
+}
+
+function getShelfColorFromCover(coverDataUrl) {
+    return new Promise(resolve => {
+        if (!coverDataUrl || typeof Image === 'undefined') return resolve('#8E4E00');
+        const image = new Image();
+        image.onload = () => {
+            try {
+                const canvas = document.createElement('canvas');
+                const size = 48;
+                canvas.width = size;
+                canvas.height = size;
+                const context = canvas.getContext('2d', { willReadFrequently: true });
+                if (!context) return resolve('#8E4E00');
+                context.drawImage(image, 0, 0, size, size);
+                const pixels = context.getImageData(0, 0, size, size).data;
+                const bins = new Map();
+                for (let index = 0; index < pixels.length; index += 4) {
+                    const alpha = pixels[index + 3];
+                    if (alpha < 180) continue;
+                    const red = pixels[index];
+                    const green = pixels[index + 1];
+                    const blue = pixels[index + 2];
+                    const max = Math.max(red, green, blue);
+                    const min = Math.min(red, green, blue);
+                    const saturation = max ? (max - min) / max : 0;
+                    const brightness = (red + green + blue) / 3;
+                    if (brightness > 242 || brightness < 18) continue;
+                    const key = [red, green, blue].map(channel => Math.round(channel / 32) * 32).join(',');
+                    const current = bins.get(key) || { score: 0, red: 0, green: 0, blue: 0, count: 0 };
+                    const weight = 1 + saturation * 2;
+                    current.score += weight;
+                    current.red += red * weight;
+                    current.green += green * weight;
+                    current.blue += blue * weight;
+                    current.count += weight;
+                    bins.set(key, current);
+                }
+                const best = Array.from(bins.values()).sort((a, b) => b.score - a.score)[0];
+                resolve(best ? rgbToHex(best.red / best.count, best.green / best.count, best.blue / best.count) : '#8E4E00');
+            } catch (error) { resolve('#8E4E00'); }
+        };
+        image.onerror = () => resolve('#8E4E00');
+        image.src = coverDataUrl;
     });
 }
 
-const fileInput = document.getElementById('file-upload');
+function shelfSlots() {
+    return Array.from(document.querySelectorAll('#shelf-dropzone-target .realistic-shelf-cluster > .tight-book'))
+        .filter(slot => slot.id !== 'btn-shelf-add');
+}
+
+function normalizeBookIdentity(value) {
+    return String(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, ' ')
+        .trim();
+}
+
+async function getBookFileHash(file) {
+    try {
+        if (!window.crypto?.subtle) return '';
+        const buffer = await file.arrayBuffer();
+        const digest = await window.crypto.subtle.digest('SHA-256', buffer);
+        return Array.from(new Uint8Array(digest)).map(byte => byte.toString(16).padStart(2, '0')).join('');
+    } catch (error) {
+        console.warn('[Biblioteca] No se pudo calcular la identidad del EPUB:', error);
+        return '';
+    }
+}
+
+function bookLengthMetric(record) {
+    if (Number(record.chapterCount) > 0) return Number(record.chapterCount);
+    if (Number(record.fileSize) > 0) return Math.max(1, Math.round(Number(record.fileSize) / 100000));
+    return 1;
+}
+
+function getShelfDimensions(record) {
+    const books = readStoredBooks();
+    const metrics = books.map(bookLengthMetric);
+    const min = Math.min(...metrics, bookLengthMetric(record));
+    const max = Math.max(...metrics, bookLengthMetric(record));
+    const range = max - min;
+    const relativeLength = range > 0 ? (bookLengthMetric(record) - min) / range : 0.5;
+    // Altura principal según longitud y una pequeña variación estable para empates.
+    const tieVariation = ((Number(record.slotIndex) || 0) % 5) * 0.025;
+    const normalized = Math.max(0, Math.min(1, relativeLength * 0.85 + tieVariation));
+    return {
+        width: Math.round(56 + normalized * 18),
+        height: Math.round(292 + normalized * 64)
+    };
+}
+
+function initializeShelfSlots() {
+    shelfSlots().forEach((slot, index) => {
+        if (!slot.dataset.listenbookSlot) slot.dataset.listenbookSlot = String(index);
+        slot.setAttribute('draggable', 'true');
+        slot.setAttribute('aria-grabbed', 'false');
+        if (!slot.dataset.listenbookDefaultCaptured) {
+            slot.__listenbookDefaultHTML = slot.innerHTML;
+            slot.__listenbookDefaultBookId = slot.dataset.bookId || '';
+            slot.__listenbookDefaultTitle = slot.getAttribute('title') || '';
+            slot.__listenbookDefaultClassName = slot.className;
+            slot.dataset.listenbookDefaultCaptured = 'true';
+        }
+    });
+}
+
+function createExtraShelfSlot(index) {
+    const cluster = document.querySelector('#shelf-dropzone-target .realistic-shelf-cluster');
+    const addSlot = document.getElementById('btn-shelf-add');
+    if (!cluster || !addSlot) return null;
+    const slot = document.createElement('div');
+    slot.className = 'tight-book group relative';
+    slot.dataset.listenbookSlot = String(index);
+    slot.dataset.listenbookDynamic = 'true';
+    slot.setAttribute('draggable', 'true');
+    slot.setAttribute('aria-grabbed', 'false');
+    cluster.insertBefore(slot, addSlot);
+    return slot;
+}
+
+function getShelfSlotForRecord(record) {
+    initializeShelfSlots();
+    return shelfSlots().find(slot => slot.dataset.listenbookSlot === String(record.slotIndex)) || createExtraShelfSlot(record.slotIndex);
+}
+
+function applyBookToShelf(record) {
+    const slot = getShelfSlotForRecord(record);
+    if (!slot) return null;
+    const title = record.title || record.name.replace(/\.epub$/i, '') || 'EPUB';
+    const author = record.author || 'Autor desconocido';
+    const shelfColor = record.shelfColor || '#8E4E00';
+    const shelfColorDark = darkenHex(shelfColor);
+    const dimensions = getShelfDimensions(record);
+    const cover = record.cover ? `<img src="${escapeBookText(record.cover)}" alt="" class="absolute inset-0 w-full h-full object-cover opacity-20 mix-blend-screen pointer-events-none">` : '';
+    slot.className = `${slot.className.replace(/\bhidden\b/g, '').trim()} relative`;
+    slot.dataset.listenbookUserBook = 'true';
+    slot.dataset.listenbookBookId = record.id;
+    slot.dataset.bookId = record.id;
+    slot.setAttribute('title', `Abrir ${title}`);
+    slot.innerHTML = `
+        <div class="tome-body w-14 sm:w-16 md:w-[70px] h-72 sm:h-80 md:h-[336px] rounded-t-[3px] flex flex-col justify-between py-4 px-2 relative overflow-hidden transition-all duration-300" style="width: ${dimensions.width}px; height: ${dimensions.height}px; background: linear-gradient(180deg, ${escapeBookText(shelfColor)} 0%, ${escapeBookText(shelfColorDark)} 100%); box-shadow: -2px 2px 7px rgba(44,24,16,0.18), inset 1.5px 0 2px rgba(255,255,255,0.18), inset -2px 0 3px rgba(0,0,0,0.35);">
+            ${cover}
+            <div class="w-full h-1 bg-[#F5ECE1]/40 rounded-full relative z-[1]"></div>
+            <div class="flex-1 flex flex-col items-center justify-center my-3 overflow-hidden relative z-[1]"><span class="font-headline-sm text-[#F7F2EB] text-xs sm:text-[13px] tracking-widest uppercase [writing-mode:vertical-rl] rotate-180 font-serif drop-shadow-xs truncate max-h-full">${escapeBookText(title)}</span><span class="font-label-sm text-[#E2C7BE] text-[9px] [writing-mode:vertical-rl] rotate-180 uppercase tracking-wider mt-2.5 truncate max-h-20">${escapeBookText(author)}</span></div>
+            <div class="flex flex-col items-center gap-1.5 relative z-[1]"><span class="material-symbols-outlined text-[#F5ECE1]/70 text-xs">auto_stories</span><div class="w-5 h-0.5 bg-[#F5ECE1]/30 rounded-full"></div></div>
+        </div>
+        <div class="absolute -top-8 left-1/2 -translate-x-1/2 text-[10px] font-label-sm font-semibold uppercase tracking-wider text-[#2C1810] px-2.5 py-0.5 rounded bg-white border border-[#E0D8CB] opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-sm">Abrir tomo</div>
+        <button type="button" data-listenbook-delete="${escapeBookText(record.id)}" aria-label="Eliminar ${escapeBookText(title)}" class="absolute -top-3 -right-3 z-20 flex h-7 w-7 items-center justify-center rounded-full border border-[#E0D8CB] bg-white text-[#8E4E00] opacity-0 shadow-md transition-opacity group-hover:opacity-100 hover:bg-[#8E4E00] hover:text-white"><span class="material-symbols-outlined text-[16px]">delete</span></button>`;
+    updateLibraryVolumeCount();
+    return slot;
+}
+
+function restoreShelfSlot(record) {
+    const slot = shelfSlots().find(candidate => candidate.dataset.listenbookBookId === record.id);
+    if (!slot) return;
+    if (slot.dataset.listenbookDynamic === 'true') {
+        slot.remove();
+        updateLibraryVolumeCount();
+        return;
+    }
+    slot.innerHTML = slot.__listenbookDefaultHTML || '';
+    slot.className = slot.__listenbookDefaultClassName || 'tight-book group';
+    slot.dataset.bookId = slot.__listenbookDefaultBookId || '';
+    delete slot.dataset.listenbookUserBook;
+    delete slot.dataset.listenbookBookId;
+    slot.setAttribute('title', slot.__listenbookDefaultTitle || '');
+    updateLibraryVolumeCount();
+}
+
+function shelfVolumeElements() {
+    return Array.from(document.querySelectorAll('#shelf-dropzone-target .realistic-shelf-cluster > .tight-book'))
+        .filter(slot => slot.id !== 'btn-shelf-add');
+}
+
+async function persistShelfOrder() {
+    const volumes = shelfVolumeElements();
+    const books = readStoredBooks();
+    const changed = [];
+    volumes.forEach((slot, index) => {
+        slot.dataset.listenbookSlot = String(index);
+        const bookId = slot.dataset.listenbookBookId;
+        if (!bookId) return;
+        const record = books.find(book => book.id === bookId);
+        if (!record || record.slotIndex === index) return;
+        record.slotIndex = index;
+        record.updatedAt = new Date().toISOString();
+        changed.push(record);
+    });
+    if (!changed.length) return;
+    writeStoredBooks(books);
+    await Promise.all(changed.map(record => persistBookToServer(record)));
+    toast('Orden de la estantería guardado');
+}
+
+function findNextBookSlot(books) {
+    const used = new Set(books.map(book => Number.isInteger(book.slotIndex) ? book.slotIndex : -1));
+    let index = 0;
+    while (used.has(index)) index += 1;
+    return index;
+}
+
+async function saveBookInLibrary(file, ebook, existingId = null) {
+    const books = readStoredBooks();
+    const previous = existingId ? books.find(book => book.id === existingId) : null;
+    const title = ebook.titulo || file.name.replace(/\.epub$/i, '');
+    const author = ebook.autor || '';
+    const bookKey = `${normalizeBookIdentity(title)}|${normalizeBookIdentity(author)}`;
+    const fileHash = await getBookFileHash(file);
+    const duplicate = books.find(book => {
+        if (book.id === existingId) return false;
+        const sameHash = fileHash && book.fileHash && fileHash === book.fileHash;
+        const storedKey = book.bookKey || `${normalizeBookIdentity(book.title)}|${normalizeBookIdentity(book.author)}`;
+        return sameHash || (bookKey !== '|' && storedKey === bookKey);
+    });
+    if (duplicate) {
+        applyBookToShelf(duplicate);
+        window.__listenbookCurrentBookId = duplicate.id;
+        await persistBookToServer(duplicate, await readBookFile(duplicate.id));
+        return { record: duplicate, duplicate: true };
+    }
+    const shelfColor = await getShelfColorFromCover(ebook.portada || '');
+    const record = { id: existingId || createBookId(), name: file.name, title, author, bookKey, fileHash, fileSize: file.size || 0, chapterCount: previous?.chapterCount || 0, cover: ebook.portada || '', shelfColor, slotIndex: previous && Number.isInteger(previous.slotIndex) ? previous.slotIndex : findNextBookSlot(books), createdAt: previous?.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() };
+    writeStoredBooks(previous ? books.map(book => book.id === record.id ? record : book) : [...books, record]);
+    await storeBookFile(record.id, file);
+    await persistBookToServer(record, file);
+    applyBookToShelf(record);
+    window.__listenbookCurrentBookId = record.id;
+    return { record, duplicate: false };
+}
+
+function updateStoredBookMetrics(id, chapterCount, fileSize) {
+    if (!id) return;
+    const books = readStoredBooks();
+    const record = books.find(book => book.id === id);
+    if (!record) return;
+    if (Number(chapterCount) > 0) record.chapterCount = Number(chapterCount);
+    if (Number(fileSize) > 0) record.fileSize = Number(fileSize);
+    writeStoredBooks(books);
+    books.forEach(book => applyBookToShelf(book));
+    const updated = books.find(book => book.id === id);
+    if (updated) persistBookToServer(updated).catch(() => {});
+}
+
+async function deleteStoredBook(id) {
+    if (!id) return;
+    const books = readStoredBooks();
+    const record = books.find(book => book.id === id);
+    if (!record) return;
+    writeStoredBooks(books.filter(book => book.id !== id));
+    await removeBookFile(id);
+    await deleteBookFromServer(id);
+    restoreShelfSlot(record);
+    if (window.__listenbookCurrentBookId === id) { window.__listenbookCurrentBookId = null; window.__listenbookEbook = null; window.__listenbookChapterData = null; }
+}
+
+async function confirmDeleteLoadedBook() {
+    const id = window.__listenbookCurrentBookId;
+    const record = readStoredBooks().find(book => book.id === id);
+    if (!record) return;
+    let confirmed = false;
+    if (typeof Swal !== 'undefined') {
+        const result = await Swal.fire({
+            icon: 'warning',
+            title: '¿Eliminar este tomo?',
+            text: `Se eliminará «${record.title || record.name || 'este libro'}» y sus datos guardados de ListenBook.`,
+            showCancelButton: true,
+            confirmButtonText: 'Eliminar tomo',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#A23D33',
+            cancelButtonColor: '#82746F'
+        });
+        confirmed = result.isConfirmed;
+    } else {
+        confirmed = window.confirm(`¿Eliminar «${record.title || record.name || 'este libro'}»?`);
+    }
+    if (!confirmed) return;
+    await deleteStoredBook(id);
+    showShelfView();
+}
+
+async function openStoredBook(record) {
+    if (!fileInput || !record) return;
+    const stored = await readBookFile(record.id);
+    if (!stored) {
+        if (typeof Swal !== 'undefined') Swal.fire({ icon: 'warning', title: 'Archivo no disponible', text: 'Este tomo sigue registrado, pero su EPUB ya no está disponible en el navegador.' });
+        return;
+    }
+    try {
+        const file = stored instanceof File ? stored : new File([stored], record.name, { type: 'application/epub+zip' });
+        const transfer = new DataTransfer();
+        transfer.items.add(file);
+        window.__listenbookOpeningStoredBook = record.id;
+        fileInput.files = transfer.files;
+        fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+    } catch (error) {
+        console.error('[Biblioteca] No se pudo abrir el tomo:', error);
+        if (typeof Swal !== 'undefined') Swal.fire({ icon: 'error', title: 'No se pudo abrir el tomo', text: 'El navegador no ha podido preparar el EPUB guardado.' });
+    }
+}
+
+async function restoreStoredBooksOnShelf() {
+    initializeShelfSlots();
+    const books = readStoredBooks();
+    updateLibraryVolumeCount(books);
+    let changed = false;
+    books.forEach(record => {
+        if (!Number.isInteger(record.slotIndex)) {
+            record.slotIndex = findNextBookSlot(books);
+            changed = true;
+        }
+        applyBookToShelf(record);
+        if (!record.shelfColor && record.cover) {
+            getShelfColorFromCover(record.cover).then(color => {
+                const currentBooks = readStoredBooks();
+                const current = currentBooks.find(book => book.id === record.id);
+                if (!current || current.shelfColor) return;
+                current.shelfColor = color;
+                writeStoredBooks(currentBooks);
+                applyBookToShelf(current);
+            });
+        }
+        if (!record.fileSize) {
+            readBookFile(record.id).then(file => {
+                if (file && file.size) updateStoredBookMetrics(record.id, record.chapterCount, file.size);
+            });
+        }
+    });
+    if (changed) writeStoredBooks(books);
+    await syncLibraryWithServer();
+}
+
+const shelfStage = document.getElementById('shelf-dropzone-target');
+if (shelfStage) {
+    let draggedShelfVolume = null;
+    let shelfDropTarget = null;
+
+    const clearShelfDragState = () => {
+        draggedShelfVolume?.classList.remove('is-dragging');
+        draggedShelfVolume?.setAttribute('aria-grabbed', 'false');
+        shelfDropTarget?.classList.remove('shelf-drop-target');
+        draggedShelfVolume = null;
+        shelfDropTarget = null;
+    };
+
+    shelfStage.addEventListener('dragstart', event => {
+        const volume = event.target.closest('.tight-book');
+        if (!volume || volume.id === 'btn-shelf-add' || event.target.closest('button')) return;
+        draggedShelfVolume = volume;
+        draggedShelfVolume.classList.add('is-dragging');
+        draggedShelfVolume.setAttribute('aria-grabbed', 'true');
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', volume.dataset.listenbookBookId || volume.dataset.bookId || 'shelf-volume');
+    });
+
+    shelfStage.addEventListener('dragover', event => {
+        if (!draggedShelfVolume) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+        const target = event.target.closest('.tight-book');
+        if (!target || target === draggedShelfVolume || target.id === 'btn-shelf-add') return;
+        shelfDropTarget?.classList.remove('shelf-drop-target');
+        shelfDropTarget = target;
+        shelfDropTarget.classList.add('shelf-drop-target');
+        const bounds = target.getBoundingClientRect();
+        const insertBefore = event.clientX < bounds.left + bounds.width / 2;
+        target.parentElement.insertBefore(draggedShelfVolume, insertBefore ? target : target.nextSibling);
+    });
+
+    shelfStage.addEventListener('drop', event => {
+        if (!draggedShelfVolume) return;
+        event.preventDefault();
+        persistShelfOrder().catch(error => console.warn('[Biblioteca] No se pudo guardar el orden:', error));
+        clearShelfDragState();
+    });
+
+    shelfStage.addEventListener('dragend', clearShelfDragState);
+
+    shelfStage.addEventListener('click', event => {
+        const deleteButton = event.target.closest('[data-listenbook-delete]');
+        if (deleteButton) { event.preventDefault(); event.stopImmediatePropagation(); deleteStoredBook(deleteButton.dataset.listenbookDelete).catch(error => console.error('[Biblioteca] Error eliminando tomo:', error)); return; }
+        const book = event.target.closest('.tight-book[data-listenbook-user-book="true"]');
+        if (book) {
+            const record = readStoredBooks().find(item => item.id === book.dataset.listenbookBookId);
+            if (!record) return;
+            event.preventDefault(); event.stopImmediatePropagation(); openStoredBook(record);
+            return;
+        }
+        // El resto de los tomos son material de ejemplo. Se mantienen sus
+        // efectos visuales, pero el clic no debe alcanzar el controlador del
+        // prototipo que abre el tomo de demostración.
+        const exampleBook = event.target.closest('.tight-book:not(#btn-shelf-add)');
+        if (exampleBook) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+        }
+    }, true);
+}
+Promise.resolve(window.listenbookAuthReady || true)
+    .then(() => restoreStoredBooksOnShelf())
+    .catch(error => console.warn('[Biblioteca] No se pudo sincronizar la estantería:', error));
+
+if (reuploadButton && fileInput) {
+    reuploadButton.addEventListener('click', () => fileInput.click());
+}
+if (deleteLoadedBookButton) {
+    deleteLoadedBookButton.addEventListener('click', confirmDeleteLoadedBook);
+}
+if (deleteLoadedBookStatButton) {
+    deleteLoadedBookStatButton.addEventListener('click', confirmDeleteLoadedBook);
+}
+if (coverActionHint) {
+    coverActionHint.addEventListener('click', () => {
+        const cover = document.querySelector('#portada_display img');
+        if (cover) cover.click();
+    });
+}
+if (backToMainButton) {
+    backToMainButton.addEventListener('click', () => {
+        const downloads = document.getElementById('downloads_section');
+        const workspace = document.getElementById('configuracion_section');
+        if (downloads) downloads.style.display = 'none';
+        if (workspace) workspace.style.display = 'block';
+    });
+}
 // Directory upload elements (hidden input + trigger button)
 const dirInput = document.getElementById('dir-upload');
 const dirUploadBtn = document.getElementById('dir-upload-btn');
@@ -100,6 +1251,7 @@ function pickReferenceAudio() {
                     refAudioInput.value = '';
                     return resolve(null);
                 }
+                refAudioInput.dataset.listenbookFilename = file.name || 'audio personalizado';
                 const reader = new FileReader();
                 reader.onload = () => {
                     refAudioInput.value = '';
@@ -321,252 +1473,308 @@ if (fileInput) {
             try {
                 const ebook = new Ebook(file);
                 await ebook.parse();
+                const openingStoredBookId = window.__listenbookOpeningStoredBook || null;
+                window.__listenbookOpeningStoredBook = null;
+                const libraryResult = await saveBookInLibrary(file, ebook, openingStoredBookId);
+                if (libraryResult && libraryResult.duplicate) {
+                    window.__listenbookEbook = null;
+                    window.__listenbookChapterData = null;
+                    fileInput.value = '';
+                    if (typeof Swal !== 'undefined') {
+                        await Swal.fire({ icon: 'info', title: 'Este libro ya está en la estantería', text: 'No se ha añadido una segunda copia.' });
+                    }
+                    showShelfView();
+                    return;
+                }
+                const libraryRecord = libraryResult && libraryResult.record;
                 setTitle(ebook.titulo);
                 setAuthor(ebook.autor);
+                setBookCollection(formatBookCollection(ebook));
                 const img = showCover(ebook.portada, ebook.titulo);
+
+                // La detección se hace al cargar el EPUB para que el libro abierto
+                // muestre desde el principio sus capítulos reales y no los del prototipo.
+                let chapterData = { all: [], excluded: [] };
+                try {
+                    showProcessing('Extrayendo capítulos', 'Detectando todos los capítulos del EPUB...');
+                    const resultado = await extraerCapitulos(ebook);
+                    chapterData = {
+                        all: resultado && Array.isArray(resultado.all) ? resultado.all : [],
+                        excluded: resultado && Array.isArray(resultado.excluded) ? resultado.excluded : []
+                    };
+                    window.__listenbookChapterData = chapterData;
+                    window.__listenbookEbook = ebook;
+                    updateStoredBookMetrics(libraryRecord && libraryRecord.id, chapterData.all.length, file.size);
+                    console.info('[EPUB] Capítulos detectados:', chapterData.all.length, chapterData.all.map(chapter => chapter.titulo || chapter.title || chapter.href));
+                    try {
+                        renderPrototypeChapterSelection(chapterData.all, chapterData.excluded);
+                        restoreGeneratedAudioForBook((libraryRecord && libraryRecord.id) || ebook.titulo || ebook.title).catch(error => {
+                            console.warn('[EPUB] No se pudieron comprobar los audios ya generados:', error);
+                        });
+                    } catch (renderError) {
+                        console.error('[EPUB] Error mostrando los capítulos detectados:', renderError);
+                    }
+                    activateConvertEpubMenu();
+                    if (!chapterData.all.length && typeof Swal !== 'undefined') {
+                        Swal.fire({ icon: 'warning', title: 'No se detectaron capítulos', text: 'El EPUB se ha cargado, pero su índice o estructura de lectura no contiene capítulos reconocibles.' });
+                    }
+                } catch (chapterError) {
+                    console.error('[EPUB] No se pudieron detectar los capítulos:', chapterError);
+                    try { renderPrototypeChapterSelection([], []); } catch (renderError) { console.error('[EPUB] Error limpiando la lista:', renderError); }
+                } finally {
+                    closeProcessing();
+                }
                 if (img) {
                     img.onmouseover = () => img.style.opacity = '0.5';
                     img.onmouseout = () => img.style.opacity = '1';
                     // restore simple click handler on the cover image
-                    img.onclick = async () => {
-                        console.log('[UI] cover image clicked — executing handler');
-                        showProcessing();
-                        const resultado = await extraerCapitulos(ebook);
-                        closeProcessing();
-                        const allCaps = resultado.all || [];
-                        const excluded = resultado.excluded || [];
-                        const seleccionados = await showChapterSelectionModal(allCaps, excluded, (ebook && (ebook.titulo || ebook.title)) ? (ebook.titulo || ebook.title) : null);
-                        if (!seleccionados) { console.log('Selección cancelada'); return; }
-                        console.log('Capítulos seleccionados:', seleccionados);
+                let activeSynthesisRunToken = 0;
+                const runSynthesisForChapters = async (seleccionados) => {
+                    const allCaps = (window.__listenbookChapterData || { all: [] }).all || [];
+                    const audioSettings = readAudioSettings();
+                    const synthesisRunToken = ++activeSynthesisRunToken;
+                    try {
+                        const referenceDataUrl = null;
+                        const selectedVoicePath = audioSettings.voice || '/default_audios/esp_default/narrador_esp.wav';
+                        const selectedVoiceUrl = new URL(selectedVoicePath, window.location.href).toString();
 
-                        // Show progress modal
-                        if (typeof Swal !== 'undefined') {
-                            Swal.fire({
-                                title: 'Generando audio',
-                                html: '<div id="tts-progress">Preparando...</div>',
-                                allowOutsideClick: false,
-                                showCancelButton: true,
-                                cancelButtonText: 'Cancelar'
-                            });
-                        }
+                            console.log('[UI] invoking ejecutarTTS — selected chapters:', seleccionados.length, seleccionados.map(c => c.titulo || c.title || c.href));
+                            console.log('[UI] voz de referencia:', audioSettings.voice === 'custom' ? 'personalizada' : selectedVoicePath);
+                            // clear previous downloads for a fresh run
+                            try { clearDownloads(); } catch (e) {}
 
-                        try {
-                            // Ask the user whether they want to upload a reference audio file
-                            let referenceDataUrl = null;
-                            if (typeof Swal !== 'undefined') {
-                                const wantUpload = await Swal.fire({
-                                    title: '¿Quieres subir un audio de referencia?',
-                                    html: 'Puedes subir un archivo de audio (WAV) que servirá como referencia para la generación. Si cancelas, se usará un audio de ejemplo.',
-                                    showCancelButton: true,
-                                    confirmButtonText: 'Sí, subir archivo',
-                                    cancelButtonText: 'No, usar ejemplo',
-                                    allowOutsideClick: false
-                                });
-                                if (wantUpload.isConfirmed) {
+                            // Process each chapter separately (one predict per chapter).
+                            // The token prevents delayed progress events from a
+                            // finished prompt changing the next chapter's widget.
+                            let activeProgressToken = 0;
+                            for (let ci = 0; ci < (seleccionados || []).length; ci++) {
+                                const chap = seleccionados[ci];
+                                const progressToken = ++activeProgressToken;
+                                let currentPromptId = null;
+                                try {
+                                    // Setup per-chapter progress widget
                                     try {
-                                        if (typeof Swal !== 'undefined') Swal.fire({ title: 'Leyendo archivo', text: 'Por favor espera...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-                                        referenceDataUrl = await pickReferenceAudio();
-                                    } finally {
-                                        try { if (typeof Swal !== 'undefined') Swal.close(); } catch (e) {}
-                                    }
-                                }
-                            }
+                                        createProgressWidget();
+                                        updateProgressWidget({ percent: 0, label: `Cap ${ci+1}/${seleccionados.length} · Esperando el progreso de ComfyUI...` });
+                                    } catch (e) { console.warn('progress widget init failed', e); }
 
-                                console.log('[UI] invoking ejecutarTTS — selected chapters:', seleccionados.length, seleccionados.map(c => c.titulo || c.title || c.href));
-                                console.log('[UI] referenceDataUrl present?', !!referenceDataUrl);
-                                // clear previous downloads for a fresh run
-                                try { clearDownloads(); } catch (e) {}
-
-                                // Process each chapter separately (one predict per chapter)
-                                for (let ci = 0; ci < (seleccionados || []).length; ci++) {
-                                    const chap = seleccionados[ci];
-                                    try {
-                                        // Setup per-chapter progress widget
-                                        try {
-                                            createProgressWidget();
-                                            updateProgressWidget({ percent: 0, label: `Cap ${ci+1}/${seleccionados.length} · Esperando el progreso de ComfyUI...` });
-                                        } catch (e) { console.warn('progress widget init failed', e); }
-
-                                        // One predict per chapter: pass single chapter
-                                        const result = await ejecutarTTS(ebook, [chap], {
-                                            comfyuiBase: COMFYUI_BASE,
-                                            referenceAudioDataUrl: referenceDataUrl,
-                                            // default example audio served from the ListenBook folder
-                                            referenceAudioUrl: (function(){
-                                                try {
-                                                    // resolve relative to current page so it works whether Live Server serves ListenBook
-                                                    return new URL('default_audios/esp_default/narrador_esp.wav', window.location.href).toString();
-                                                } catch(e) { return '/default_audios/esp_default/narrador_esp.wav'; }
-                                            })(),
-                                            clientTimeout: 0,
-                                            pollInterval: 1500,
-                                            timeout: 1000 * 60 * 10,
-                                            onProgress: (status) => {
-                                                try{
-                                                    if (typeof status.percent === 'number') {
-                                                        const eta = Number.isFinite(status.etaSeconds)
-                                                            ? (status.etaSeconds < 60
-                                                                ? `${Math.ceil(status.etaSeconds)} s`
-                                                                : `${Math.floor(status.etaSeconds / 60)} min ${Math.ceil(status.etaSeconds % 60)} s`)
-                                                            : 'calculando...';
-                                                        updateProgressWidget({
-                                                            percent: status.percent,
-                                                            label: `Cap ${ci+1}/${seleccionados.length} · Restante aprox.: ${eta}`
-                                                        });
-                                                    }
-                                                    const el = document.getElementById('tts-progress');
-                                                    if (el) {
-                                                        let html = '';
-                                                        if (status.promptId) html += `<div>ComfyUI: ${status.promptId}</div>`;
-                                                        if (status.status) html += `<div>Estado: ${status.status}</div>`;
-                                                        if (Number.isFinite(status.percent)) html += `<div>Progreso: ${Math.round(status.percent)}%</div>`;
-                                                        if (Number.isFinite(status.etaSeconds)) html += `<div>Tiempo restante aprox.: ${Math.ceil(status.etaSeconds)} s</div>`;
-                                                        if (status.diagnostics && status.diagnostics.length) html += `<div>Diagnostics: ${status.diagnostics.length} items</div>`;
-                                                        if (status.files && status.files.length) html += `<div>Archivos generados: ${status.files.length}</div>`;
-                                                        el.innerHTML = html;
-                                                    }
-                                                }catch(e){ console.error('progress update err', e); }
+                                    // One predict per chapter: pass single chapter
+                                    const result = await ejecutarTTS(ebook, [chap], {
+                                        comfyuiBase: COMFYUI_BASE,
+                                        referenceAudioDataUrl: referenceDataUrl,
+                                        referenceAudioUrl: selectedVoiceUrl,
+                                        audioSettings,
+                                        clientTimeout: 0,
+                                        pollInterval: 1500,
+                                        timeout: 1000 * 60 * 10,
+                                        onProgress: (status) => {
+                                            if (synthesisRunToken !== activeSynthesisRunToken || progressToken !== activeProgressToken) return;
+                                            if (status.promptId) {
+                                                if (!currentPromptId) currentPromptId = status.promptId;
+                                                if (currentPromptId !== status.promptId) return;
                                             }
-                                        });
+                                            try{
+                                                if (typeof status.percent === 'number') {
+                                                    const eta = Number.isFinite(status.etaSeconds)
+                                                        ? (status.etaSeconds < 60
+                                                            ? `${Math.ceil(status.etaSeconds)} s`
+                                                            : `${Math.floor(status.etaSeconds / 60)} min ${Math.ceil(status.etaSeconds % 60)} s`)
+                                                        : 'calculando...';
+                                                    updateProgressWidget({
+                                                        percent: status.percent,
+                                                        label: `Cap ${ci+1}/${seleccionados.length} · Restante aprox.: ${eta}`
+                                                    });
+                                                }
+                                            }catch(e){ console.error('progress update err', e); }
+                                        }
+                                    });
 
-                                        // clear per-chapter progress
-                                        try {
+                                    // clear per-chapter progress
+                                    try {
+                                        if (progressToken === activeProgressToken) {
                                             if (window.__tts_progress_interval) { clearInterval(window.__tts_progress_interval); window.__tts_progress_interval = null; }
                                             removeProgressWidget();
-                                        } catch (e) {}
+                                        }
+                                    } catch (e) {}
 
-                                        // Process result for this chapter (same logic as before, but use chap as source for naming)
+                                    // Process result for this chapter (same logic as before, but use chap as source for naming)
+                                    try {
+                                        let normalized = result;
+                                        if (typeof normalized === 'string') {
+                                            try { normalized = JSON.parse(normalized); console.log('[UI] parsed result string into object'); } catch (e) { console.warn('[UI] result is string but not JSON'); }
+                                        }
+                                        const files = extractFilesFromResult(normalized || {});
+                                        console.log('[UI] extracted files for chapter', ci, files);
                                         try {
-                                            let normalized = result;
-                                            if (typeof normalized === 'string') {
-                                                try { normalized = JSON.parse(normalized); console.log('[UI] parsed result string into object'); } catch (e) { console.warn('[UI] result is string but not JSON'); }
-                                            }
-                                            const files = extractFilesFromResult(normalized || {});
-                                            console.log('[UI] extracted files for chapter', ci, files);
-                                            try {
-                                                if (files && files.length >= 1) {
-                                                    const f0 = files[0];
-                                                    const f1 = files[files.length - 1];
-                                                    function rawPathFromFileObj(f) {
-                                                        if (!f) return null;
-                                                        if (f.path) return f.path;
-                                                        if (f.url) {
-                                                            const m = String(f.url).match(/file=(.*)$/);
-                                                            if (m && m[1]) return decodeURIComponent(m[1]);
-                                                        }
-                                                        return null;
+                                            if (files && files.length >= 1) {
+                                                const f0 = files[0];
+                                                const f1 = files[files.length - 1];
+                                                function rawPathFromFileObj(f) {
+                                                    if (!f) return null;
+                                                    if (f.path) return f.path;
+                                                    if (f.url) {
+                                                        const m = String(f.url).match(/file=(.*)$/);
+                                                        if (m && m[1]) return decodeURIComponent(m[1]);
                                                     }
-                                                    const path0 = rawPathFromFileObj(f0);
-                                                    const path1 = rawPathFromFileObj(f1);
-                                                    const bookTitleRaw = (ebook && (ebook.titulo || ebook.title)) ? (ebook.titulo || ebook.title) : 'ebook';
-                                                    let chapterName = 'capitulo';
-                                                    try { chapterName = chap.titulo || chap.title || chapterName; } catch(e){}
-
-                                                    try {
-                                                        // Instead of moving the file into a permanent outputs folder on the server,
-                                                        // trigger a direct download from the proxy which will stream the file and
-                                                        // delete it on the server after the transfer completes. This avoids leaving
-                                                        // permanent copies on the host machine.
-                                                        try {
-                                                            // Build a default safe filename in the format:
-                                                            // Titulo_Del_Libro_Nombre_Capitulo_XX_YYYYMMDD.mp3
-                                                            // Create TitleCase concatenated tokens (no separators) for book and chapter
-                                                            function makeTitleConcat(s) {
-                                                                try {
-                                                                    const tokenRe = /[\p{L}\p{N}]+/gu;
-                                                                    const tokens = Array.from(String(s || '').matchAll(tokenRe)).map(m => m[0]);
-                                                                    const joined = tokens.map(t => t.charAt(0).toUpperCase() + t.slice(1).toLowerCase()).join('');
-                                                                    return joined || String(s || '').replace(/[^A-Za-z0-9]/g,'');
-                                                                } catch (e) { return String(s || '').replace(/[^A-Za-z0-9]/g,''); }
-                                                            }
-                                                            const bookSafePart = makeTitleConcat(bookTitleRaw || 'Libro');
-                                                            const chapterSafePart = makeTitleConcat(chapterName || ('Capitulo' + (ci+1)));
-                                                            // Determine chapter order: prefer explicit chap.numero/number (absolute position in book), fallback to loop index
-                                                            const chapterOrder = (chap && (chap.numero || chap.number)) ? (chap.numero || chap.number) : (function(){
-                                                                try {
-                                                                    if (typeof allCaps !== 'undefined' && Array.isArray(allCaps)) {
-                                                                        const list = allCaps;
-                                                                        const titleA = (chap && (chap.titulo || chap.title) ? (chap.titulo || chap.title).toString().trim() : null);
-                                                                        if (titleA) {
-                                                                            const idx = list.findIndex(c => {
-                                                                                try { return (c && (c.titulo || c.title) ? (c.titulo || c.title).toString().trim() : '') === titleA; } catch (e) { return false; }
-                                                                            });
-                                                                            if (idx >= 0) return idx + 1;
-                                                                        }
-                                                                    }
-                                                                } catch (e) {}
-                                                                return (ci + 1);
-                                                            })();
-                                                            const orderPart = String(chapterOrder); // no zero-padding per request
-                                                            const fecha = (new Date()).toISOString().slice(0,10).replace(/-/g,'');
-                                                            const suggested = `${bookSafePart}_${chapterSafePart}_${orderPart}_${fecha}.mp3`;
-
-                                                            const proxyDownload = (f1 && f1.url && /^https?:\/\//i.test(f1.url))
-                                                                ? f1.url
-                                                                : PROXY_BASE + '/proxy_download?path=' + encodeURIComponent(path1) + '&suggestName=' + encodeURIComponent(suggested);
-                                                            // Create a temporary anchor and click it so the browser opens the Save dialog
-                                                            const a = document.createElement('a');
-                                                            a.href = proxyDownload;
-                                                            // Suggest a filename to the browser (also provided to proxy)
-                                                            a.download = suggested;
-                                                            a.style.display = 'none';
-                                                            document.body.appendChild(a);
-                                                            a.click();
-                                                            setTimeout(() => { try { document.body.removeChild(a); } catch (e) {} }, 1000);
-                                                            // give the proxy a moment to clean up and refresh outputs listing
-                                                            await new Promise(r => setTimeout(r, 1000));
-                                                            try { await fetchAndShowOutputsDir(); } catch (e) {}
-                                                        } catch (e) {
-                                                            console.error('download trigger failed', e);
-                                                            try { await fetchAndShowOutputsDir(); } catch (e) {}
-                                                        }
-                                                    } catch (e) { console.error('finalize error', e); try { await fetchAndShowOutputsDir(); } catch (e2) {} }
-                                                } else if (files && files.length === 1) {
-                                                    try { await fetchAndShowOutputsDir(); } catch (e) { /* ignore */ }
-                                                } else {
-                                                    console.warn('[UI] no files found in result for chapter', ci);
-                                                    if (typeof Swal !== 'undefined') Swal.fire({ icon: 'error', title: 'Error', text: `No se encontraron audios generados para el capítulo ${ci+1}.` });
+                                                    return null;
                                                 }
-                                            } catch (e) {
-                                                console.error('Error processing files for delete/rename', e);
+                                                const path0 = rawPathFromFileObj(f0);
+                                                const path1 = rawPathFromFileObj(f1);
+                                                const bookTitleRaw = (ebook && (ebook.titulo || ebook.title)) ? (ebook.titulo || ebook.title) : 'ebook';
+                                                let chapterName = 'capitulo';
+                                                try { chapterName = chap.titulo || chap.title || chapterName; } catch(e){}
+
+                                                try {
+                                                    // Instead of moving the file into a permanent outputs folder on the server,
+                                                    // trigger a direct download from the proxy which will stream the file and
+                                                    // delete it on the server after the transfer completes. This avoids leaving
+                                                    // permanent copies on the host machine.
+                                                    try {
+                                                        // Build a default safe filename in the format:
+                                                        // Titulo_Del_Libro_Nombre_Capitulo_XX_YYYYMMDD.mp3
+                                                        // Create TitleCase concatenated tokens (no separators) for book and chapter
+                                                        function makeTitleConcat(s) {
+                                                            try {
+                                                                const tokenRe = /[\p{L}\p{N}]+/gu;
+                                                                const tokens = Array.from(String(s || '').matchAll(tokenRe)).map(m => m[0]);
+                                                                const joined = tokens.map(t => t.charAt(0).toUpperCase() + t.slice(1).toLowerCase()).join('');
+                                                                return joined || String(s || '').replace(/[^A-Za-z0-9]/g,'');
+                                                            } catch (e) { return String(s || '').replace(/[^A-Za-z0-9]/g,''); }
+                                                        }
+                                                        const bookSafePart = makeTitleConcat(bookTitleRaw || 'Libro');
+                                                        const chapterSafePart = makeTitleConcat(chapterName || ('Capitulo' + (ci+1)));
+                                                        // Determine chapter order: prefer explicit chap.numero/number (absolute position in book), fallback to loop index
+                                                        const chapterOrder = (chap && (chap.numero || chap.number)) ? (chap.numero || chap.number) : (function(){
+                                                            try {
+                                                                if (typeof allCaps !== 'undefined' && Array.isArray(allCaps)) {
+                                                                    const list = allCaps;
+                                                                    const titleA = (chap && (chap.titulo || chap.title) ? (chap.titulo || chap.title).toString().trim() : null);
+                                                                    if (titleA) {
+                                                                        const idx = list.findIndex(c => {
+                                                                            try { return (c && (c.titulo || c.title) ? (c.titulo || c.title).toString().trim() : '') === titleA; } catch (e) { return false; }
+                                                                        });
+                                                                        if (idx >= 0) return idx + 1;
+                                                                    }
+                                                                }
+                                                            } catch (e) {}
+                                                            return (ci + 1);
+                                                        })();
+                                                        const orderPart = String(chapterOrder); // no zero-padding per request
+                                                        const fecha = (new Date()).toISOString().slice(0,10).replace(/-/g,'');
+                                                        const suggested = `${bookSafePart}_${chapterSafePart}_${orderPart}_${fecha}.mp3`;
+
+                                                        const generatedAudio = files[files.length - 1] || files[0];
+                                                        const chapterAbsoluteIndex = allCaps.indexOf(chap) >= 0
+                                                            ? allCaps.indexOf(chap)
+                                                            : Math.max(0, (Number(chap && (chap.index || chap.numero || chap.number)) || 1) - 1);
+                                                        markChapterGenerated(chapterAbsoluteIndex, {
+                                                            url: generatedAudio.url,
+                                                            filename: generatedAudio.filename || suggested
+                                                        }, (window.__listenbookCurrentBookId || bookTitleRaw));
+                                                        addDownloadLink(generatedAudio.url, generatedAudio.filename || suggested);
+                                                        console.info('[UI] Audio generado y marcado en el capítulo:', chapterName, generatedAudio.url);
+                                                    } catch (e) {
+                                                        console.error('generated audio registration failed', e);
+                                                    }
+                                                } catch (e) { console.error('finalize error', e); try { await fetchAndShowOutputsDir(); } catch (e2) {} }
+                                            } else if (files && files.length === 1) {
+                                                try { await fetchAndShowOutputsDir(); } catch (e) { /* ignore */ }
+                                            } else {
+                                                console.warn('[UI] no files found in result for chapter', ci);
+                                                if (typeof Swal !== 'undefined') Swal.fire({ icon: 'error', title: 'Error', text: `No se encontraron audios generados para el capítulo ${ci+1}.` });
                                             }
                                         } catch (e) {
-                                            console.error('Error procesando resultado TTS para descargas', e);
-                                            if (typeof Swal !== 'undefined') Swal.fire({ icon: 'error', title: 'Error', text: 'La generación finalizó pero no se pudieron procesar los archivos.' });
+                                            console.error('Error processing files for delete/rename', e);
                                         }
+                                    } catch (e) {
+                                        console.error('Error procesando resultado TTS para descargas', e);
+                                        if (typeof Swal !== 'undefined') Swal.fire({ icon: 'error', title: 'Error', text: 'La generación finalizó pero no se pudieron procesar los archivos.' });
+                                    }
 
-                                        // Refresh downloads listing after each chapter
-                                        try { await fetchAndShowOutputsDir(); } catch (e) { console.warn('fetchAndShowOutputsDir failed', e); }
-                                    } catch (errChapter) {
+                                    // Refresh downloads listing after each chapter
+                                    try { await fetchAndShowOutputsDir(); } catch (e) { console.warn('fetchAndShowOutputsDir failed', e); }
+                                } catch (errChapter) {
+                                    if (progressToken === activeProgressToken) {
                                         try { if (window.__tts_progress_interval) { clearInterval(window.__tts_progress_interval); window.__tts_progress_interval = null; } removeProgressWidget(); } catch(e){}
-                                        try {
-                                            console.error('Error ejecutando TTS para capítulo', ci, errChapter);
-                                            console.error('Error ejecutando TTS (JSON):', JSON.stringify(errChapter, Object.getOwnPropertyNames(errChapter), 2));
-                                        } catch (e) { console.error('Error serializing error object', e, errChapter); }
-                                        if (typeof Swal !== 'undefined') {
-                                            const detail = (errChapter && (errChapter.message || errChapter.details || errChapter.toString())) ? (errChapter.message || errChapter.details || errChapter.toString()) : 'Error desconocido';
-                                            const small = String(detail).slice(0, 1000);
-                                            Swal.fire({ icon: 'error', title: 'Error', html: `<pre style="text-align:left; white-space:pre-wrap; word-break:break-word">${small}</pre>` });
-                                        }
+                                    }
+                                    try {
+                                        console.error('Error ejecutando TTS para capítulo', ci, errChapter);
+                                        console.error('Error ejecutando TTS (JSON):', JSON.stringify(errChapter, Object.getOwnPropertyNames(errChapter), 2));
+                                    } catch (e) { console.error('Error serializing error object', e, errChapter); }
+                                    if (typeof Swal !== 'undefined') {
+                                        const detail = (errChapter && (errChapter.message || errChapter.details || errChapter.toString())) ? (errChapter.message || errChapter.details || errChapter.toString()) : 'Error desconocido';
+                                        const small = String(detail).slice(0, 1000);
+                                        Swal.fire({ icon: 'error', title: 'Error', html: `<pre style="text-align:left; white-space:pre-wrap; word-break:break-word">${small}</pre>` });
                                     }
                                 }
-                            } catch (err) {
-                                try { if (window.__tts_progress_interval) { clearInterval(window.__tts_progress_interval); window.__tts_progress_interval = null; } removeProgressWidget(); } catch(e){}
-                            // Log full error object (handles non-Error throws)
-                            try {
-                                console.error('Error ejecutando TTS (raw):', err);
-                                console.error('Error ejecutando TTS (JSON):', JSON.stringify(err, Object.getOwnPropertyNames(err), 2));
-                            } catch (e) {
-                                console.error('Error serializing error object', e, err);
                             }
-                            // Show a more informative modal if possible
-                            if (typeof Swal !== 'undefined') {
-                                const detail = (err && (err.message || err.details || err.toString())) ? (err.message || err.details || err.toString()) : 'Error desconocido';
-                                const small = String(detail).slice(0, 1000);
-                                Swal.fire({ icon: 'error', title: 'Error', html: `<pre style="text-align:left; white-space:pre-wrap; word-break:break-word">${small}</pre>` });
-                            }
+                        } catch (err) {
+                            try { if (window.__tts_progress_interval) { clearInterval(window.__tts_progress_interval); window.__tts_progress_interval = null; } removeProgressWidget(); } catch(e){}
+                        // Log full error object (handles non-Error throws)
+                        try {
+                            console.error('Error ejecutando TTS (raw):', err);
+                            console.error('Error ejecutando TTS (JSON):', JSON.stringify(err, Object.getOwnPropertyNames(err), 2));
+                        } catch (e) {
+                            console.error('Error serializing error object', e, err);
                         }
+                        // Show a more informative modal if possible
+                        if (typeof Swal !== 'undefined') {
+                            const detail = (err && (err.message || err.details || err.toString())) ? (err.message || err.details || err.toString()) : 'Error desconocido';
+                            const small = String(detail).slice(0, 1000);
+                            Swal.fire({ icon: 'error', title: 'Error', html: `<pre style="text-align:left; white-space:pre-wrap; word-break:break-word">${small}</pre>` });
+                        }
+                    }
+                };
+
+                img.onclick = async () => {
+                    console.log('[UI] cover image clicked — executing handler');
+                    const resultado = window.__listenbookChapterData || { all: [], excluded: [] };
+                    const allCaps = resultado.all || [];
+                    const excluded = resultado.excluded || [];
+                    const seleccionados = await showChapterSelectionModal(
+                        allCaps,
+                        excluded,
+                        (ebook && (ebook.titulo || ebook.title)) ? (ebook.titulo || ebook.title) : null
+                    );
+                    if (!seleccionados) {
+                        console.log('Selección cancelada');
+                        return;
+                    }
+                    console.log('Capítulos seleccionados:', seleccionados);
+                    await runSynthesisForChapters(seleccionados);
+                };
+
+                const startSynthesisBtn = document.getElementById('startSynthesisBtn');
+                if (startSynthesisBtn) {
+                    if (startSynthesisBtn.__listenbookSynthesisHandler) {
+                        startSynthesisBtn.removeEventListener('click', startSynthesisBtn.__listenbookSynthesisHandler);
+                    }
+                    const synthesisHandler = async (event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        const allCaps = (window.__listenbookChapterData || { all: [] }).all || [];
+                        const chapterInputs = Array.from(document.querySelectorAll('#bookOpenVolume .chapter-cb'));
+                        const seleccionados = chapterInputs
+                            .filter(input => input.checked && !input.disabled)
+                            .map(input => allCaps[Number(input.dataset.index)])
+                            .filter(Boolean);
+                        if (!seleccionados.length) {
+                            if (typeof Swal !== 'undefined') {
+                                await Swal.fire({
+                                    icon: 'warning',
+                                    title: 'No hay capítulos seleccionados',
+                                    text: 'Marca al menos un capítulo antes de iniciar la síntesis.'
+                                });
+                            }
+                            return;
+                        }
+                        console.log('[UI] startSynthesisBtn — capítulos seleccionados:', seleccionados);
+                        await runSynthesisForChapters(seleccionados);
                     };
+                    startSynthesisBtn.__listenbookSynthesisHandler = synthesisHandler;
+                    startSynthesisBtn.addEventListener('click', synthesisHandler);
+                }
+
                 }
                 archivoSubido();
             } catch (err) {
@@ -610,6 +1818,7 @@ try {
                         try { showProcessing('Procesando carpeta', 'Extrayendo metadatos del EPUB...'); } catch(e){}
                         await ebook.parse();
                         try { closeProcessing(); } catch(e){}
+                        setBookCollection(formatBookCollection(ebook));
 
                         // Set cover and title in the reproducir area
                         try {
@@ -628,6 +1837,11 @@ try {
                             showProcessing('Extrayendo capítulos', 'Por favor espera...');
                             const resultado = await extraerCapitulos(ebook);
                             caps = (resultado && resultado.filtered && resultado.filtered.length) ? resultado.filtered : (resultado.all || []);
+                            window.__listenbookChapterData = {
+                                all: resultado && Array.isArray(resultado.all) ? resultado.all : caps,
+                                excluded: resultado && Array.isArray(resultado.excluded) ? resultado.excluded : []
+                            };
+                            renderPrototypeChapterSelection(window.__listenbookChapterData.all, window.__listenbookChapterData.excluded);
                         } catch (e) { console.warn('[dir] extraerCapitulos failed', e); }
                         try { closeProcessing(); } catch(e){}
 

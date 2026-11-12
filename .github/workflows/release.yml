@@ -1,0 +1,120 @@
+name: Build ListenBook releases
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux-x86_64
+          - os: windows-latest
+            platform: windows-x64
+          - os: macos-13
+            platform: macos-x86_64
+          - os: macos-14
+            platform: macos-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install build tools
+        run: python -m pip install -r packaging/requirements-build.txt
+
+      - name: Build executable
+        run: pyinstaller --clean --noconfirm packaging/listenbook.spec
+
+      - name: Build AppImage
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p AppDir/usr/bin AppDir/usr/share/applications
+          cp dist/ListenBook AppDir/usr/bin/ListenBook
+          cp packaging/AppRun AppDir/AppRun
+          cp packaging/ListenBook.desktop AppDir/ListenBook.desktop
+          cp packaging/ListenBook.desktop AppDir/usr/share/applications/ListenBook.desktop
+          cp resources/listenbook-icon-512.png AppDir/ListenBook.png
+          chmod +x AppDir/AppRun AppDir/usr/bin/ListenBook
+          curl -L --fail --retry 3 \
+            -o appimagetool.AppImage \
+            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool.AppImage
+          ARCH=x86_64 ./appimagetool.AppImage AppDir "ListenBook-${{ matrix.platform }}.AppImage"
+
+      - name: Prepare Windows artifact
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Copy-Item dist/ListenBook.exe "ListenBook-${{ matrix.platform }}.exe"
+
+      - name: Prepare macOS artifact
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP_DIR="ListenBook.app/Contents"
+          mkdir -p "$APP_DIR/MacOS" "$APP_DIR/Resources"
+          cp dist/ListenBook "$APP_DIR/MacOS/ListenBook"
+          cp resources/listenbook-icon-512.png "$APP_DIR/Resources/ListenBook.png"
+          chmod +x "$APP_DIR/MacOS/ListenBook"
+          cat > "$APP_DIR/Info.plist" <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>CFBundleExecutable</key><string>ListenBook</string>
+            <key>CFBundleIdentifier</key><string>com.listenbook.app</string>
+            <key>CFBundleName</key><string>ListenBook</string>
+            <key>CFBundlePackageType</key><string>APPL</string>
+            <key>CFBundleIconFile</key><string>ListenBook.png</string>
+            <key>CFBundleVersion</key><string>${{ github.run_number }}</string>
+          </dict></plist>
+          PLIST
+          hdiutil create -volname ListenBook -srcfolder ListenBook.app -ov -format UDZO \
+            "ListenBook-${{ matrix.platform }}.dmg"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ListenBook-${{ matrix.platform }}
+          path: |
+            ListenBook-*.AppImage
+            ListenBook-*.exe
+            ListenBook-*.dmg
+
+  release:
+    name: Publish GitHub release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          pattern: ListenBook-*
+          merge-multiple: true
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: release-assets/*

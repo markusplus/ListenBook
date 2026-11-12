@@ -1,0 +1,13 @@
+server_data/
+__pycache__/
+*.sqlite3
+*.log
+.env
+.env.*
+.venv-build/
+build/
+dist/
+AppDir/
+*.spec.bak
+appimagetool.AppImage
+*.AppImage

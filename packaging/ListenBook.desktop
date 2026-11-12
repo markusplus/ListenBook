@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=ListenBook
+Comment=Convierte EPUB en audiolibros con ComfyUI
+Exec=ListenBook
+Icon=ListenBook
+Terminal=true
+Categories=AudioVideo;
