@@ -13,10 +13,13 @@ import secrets
 import shutil
 import socket
 import sqlite3
+import sys
 import tempfile
 import time
 import unicodedata
 import xml.etree.ElementTree as ET
+import webbrowser
+import threading
 from http.cookies import SimpleCookie
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.error import HTTPError, URLError
@@ -24,7 +27,22 @@ from urllib.parse import parse_qs, quote, unquote, urlencode, urljoin, urlsplit
 from urllib.request import Request, urlopen
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
-SERVER_DATA_DIR = os.environ.get('LISTENBOOK_DATA_DIR', os.path.join(PROJECT_DIR, 'server_data'))
+
+
+def default_data_directory():
+    """Return a writable per-user directory when running as a packaged app."""
+    if not getattr(sys, 'frozen', False):
+        return os.path.join(PROJECT_DIR, 'server_data')
+    if sys.platform == 'win32':
+        root = os.environ.get('APPDATA') or os.path.join(os.path.expanduser('~'), 'AppData', 'Roaming')
+    elif sys.platform == 'darwin':
+        root = os.path.join(os.path.expanduser('~'), 'Library', 'Application Support')
+    else:
+        root = os.environ.get('XDG_DATA_HOME') or os.path.join(os.path.expanduser('~'), '.local', 'share')
+    return os.path.join(root, 'ListenBook')
+
+
+SERVER_DATA_DIR = os.environ.get('LISTENBOOK_DATA_DIR', default_data_directory())
 AUTH_DB_FILE = os.path.join(SERVER_DATA_DIR, 'listenbook.sqlite3')
 USER_DATA_DIR = os.path.join(SERVER_DATA_DIR, 'users')
 LEGACY_BOOKS_DIR = os.path.join(SERVER_DATA_DIR, 'books')
@@ -917,4 +935,10 @@ if __name__ == '__main__':
     port = int(os.environ.get('LISTENBOOK_PORT', '8080'))
     server = ThreadingHTTPServer((host, port), ListenBookHandler)
     print(f'ListenBook escuchando en http://{host}:{port}', flush=True)
+    open_browser = os.environ.get(
+        'LISTENBOOK_OPEN_BROWSER',
+        '1' if getattr(sys, 'frozen', False) else '0'
+    ).lower() in {'1', 'true', 'yes'}
+    if open_browser:
+        threading.Timer(0.8, lambda: webbrowser.open(f'http://127.0.0.1:{port}')).start()
     server.serve_forever()

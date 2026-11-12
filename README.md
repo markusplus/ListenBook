@@ -246,7 +246,7 @@ El servidor acepta estas variables de entorno:
 | <code>LISTENBOOK_PORT</code> | <code>8080</code> | Puerto de la aplicación web. |
 | <code>LISTENBOOK_COMFYUI_API</code> | <code>http://127.0.0.1:8188</code> | Dirección de la API de ComfyUI. |
 | <code>LISTENBOOK_COMFYUI_VIEW</code> | <code>http://127.0.0.1:8188/view</code> | Dirección para consultar los audios de ComfyUI. |
-| <code>LISTENBOOK_DATA_DIR</code> | <code>server_data/</code> dentro del proyecto | Carpeta privada de SQLite y datos separados por usuario. |
+| <code>LISTENBOOK_DATA_DIR</code> | <code>server_data/</code> dentro del proyecto; en ejecutables, la carpeta de datos del usuario | Carpeta privada de SQLite y datos separados por usuario. |
 | <code>LISTENBOOK_BIBLIOSES_OPDS</code> | vacío | URL OPDS inicial opcional para cuentas nuevas. También se puede establecer desde la interfaz. |
 | <code>LISTENBOOK_ALLOW_REGISTRATION</code> | vacío | Permite registrar cuentas adicionales mediante API. Vacío para cerrar el registro público. |
 | <code>LISTENBOOK_COOKIE_SECURE</code> | vacío | Añade <code>Secure</code> a la cookie cuando ListenBook se sirve detrás de HTTPS. |
@@ -280,7 +280,7 @@ En el primer arranque aparece una pantalla para crear la cuenta inicial. Despué
 
 Si ya existían <code>server_data/library.json</code>, <code>server_data/generated-audio.json</code> o EPUB en <code>server_data/books/</code>, se copian automáticamente a la primera cuenta al iniciar sesión por primera vez.
 
-La URL de Calibre-Web se configura desde **Configuración → Configuración del servidor**. Se guarda en <code>server_data/listenbook.sqlite3</code>, dentro de una carpeta ignorada por Git. No escribas una URL personal en <code>index.html</code>, JavaScript ni en el repositorio.
+La URL de Calibre-Web se configura desde **Configuración → Configuración del servidor**. En una instalación desde el código se guarda en <code>server_data/listenbook.sqlite3</code>; en los ejecutables se guarda en la carpeta de datos privada del usuario. No escribas una URL personal en <code>index.html</code>, JavaScript ni en el repositorio.
 
 Para permitir altas posteriores durante una instalación privada:
 
@@ -289,6 +289,40 @@ export LISTENBOOK_ALLOW_REGISTRATION=1
 ~~~
 
 Actívalo solo durante el tiempo necesario para crear las cuentas y vuelve a dejarlo vacío. En un despliegue público conviene poner ListenBook detrás de HTTPS y usar <code>LISTENBOOK_COOKIE_SECURE=1</code>.
+
+## Crear ejecutables para las releases
+
+ListenBook puede distribuirse sin incluir Calibre ni Calibre-Web. El ejecutable contiene la aplicación web y sus recursos; la biblioteca OPDS se configura después desde **Configuración del servidor** mediante su URL remota.
+
+El proyecto incluye un spec de PyInstaller y un workflow de GitHub Actions. El workflow genera estos artefactos al publicar una etiqueta `v*`:
+
+~~~text
+ListenBook-linux-x86_64.AppImage
+ListenBook-windows-x64.exe
+ListenBook-macos-x86_64.dmg
+ListenBook-macos-arm64.dmg
+~~~
+
+Para probar el ejecutable Linux localmente:
+
+~~~bash
+python3 -m venv .venv-build
+. .venv-build/bin/activate
+python -m pip install -r packaging/requirements-build.txt
+pyinstaller --clean --noconfirm packaging/listenbook.spec
+./dist/ListenBook
+~~~
+
+Los datos persistentes del ejecutable se guardan fuera del bundle, en la carpeta de datos del usuario. Esto incluye SQLite, libros, audios, voces y ajustes. La URL de Biblioses no se incluye en el repositorio ni en los artefactos de release.
+
+Para publicar una versión, crea y sube una etiqueta:
+
+~~~bash
+git tag v1.0.0
+git push origin v1.0.0
+~~~
+
+GitHub Actions compilará cada plataforma en su propio runner y adjuntará los archivos a la release.
 
 ## Ejecución
 
@@ -477,7 +511,17 @@ El tráfico de la aplicación, las peticiones a ComfyUI y las descargas de audio
 
 ## Datos y copias de seguridad
 
-La información persistente de ListenBook se guarda en <code>server_data/</code>:
+En una instalación desde el código, la información persistente de ListenBook se guarda en <code>server_data/</code>. En un ejecutable se usa una carpeta privada del usuario para que las actualizaciones no sobrescriban los datos:
+
+| Plataforma | Carpeta predeterminada |
+|---|---|
+| Linux | <code>~/.local/share/ListenBook/</code> |
+| macOS | <code>~/Library/Application Support/ListenBook/</code> |
+| Windows | <code>%APPDATA%\\ListenBook\\</code> |
+
+La variable <code>LISTENBOOK_DATA_DIR</code> permite cambiarla en cualquier plataforma.
+
+La estructura es:
 
 ~~~text
 server_data/
