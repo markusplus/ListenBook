@@ -34,6 +34,10 @@ function chapterDisplayTitle(chapter, index) {
 const GENERATED_AUDIO_STORAGE_KEY = 'listenbook.generated.audio.v2';
 const PLAYER_POSITION_STORAGE_KEY = 'listenbook.audio.player.position.v1';
 
+function userScopedStorageKey(key) {
+    return `${key}.${window.listenbookAuth?.user?.id || 'anonymous'}`;
+}
+
 function getCurrentBookArtwork() {
     const storedCover = String(window.__listenbookCurrentBookCover || '').trim();
     if (storedCover) return storedCover;
@@ -154,7 +158,7 @@ function generatedAudioBookKey(bookIdentity) {
 
 function readGeneratedAudioState() {
     try {
-        const value = JSON.parse(localStorage.getItem(GENERATED_AUDIO_STORAGE_KEY) || '{}');
+        const value = JSON.parse(localStorage.getItem(userScopedStorageKey(GENERATED_AUDIO_STORAGE_KEY)) || '{}');
         return value && typeof value === 'object' ? value : {};
     } catch (error) {
         return {};
@@ -162,7 +166,7 @@ function readGeneratedAudioState() {
 }
 
 function writeGeneratedAudioState(state) {
-    try { localStorage.setItem(GENERATED_AUDIO_STORAGE_KEY, JSON.stringify(state)); } catch (error) { /* storage unavailable */ }
+    try { localStorage.setItem(userScopedStorageKey(GENERATED_AUDIO_STORAGE_KEY), JSON.stringify(state)); } catch (error) { /* storage unavailable */ }
     try {
         fetch('/api/generated-audio', {
             method: 'PUT',
@@ -175,14 +179,14 @@ function writeGeneratedAudioState(state) {
 
 function readPlaybackPanelPosition() {
     try {
-        const position = JSON.parse(localStorage.getItem(PLAYER_POSITION_STORAGE_KEY) || 'null');
+        const position = JSON.parse(localStorage.getItem(userScopedStorageKey(PLAYER_POSITION_STORAGE_KEY)) || 'null');
         if (position && Number.isFinite(position.left) && Number.isFinite(position.top)) return position;
     } catch (error) { /* storage unavailable */ }
     return null;
 }
 
 function writePlaybackPanelPosition(left, top) {
-    try { localStorage.setItem(PLAYER_POSITION_STORAGE_KEY, JSON.stringify({ left, top })); } catch (error) { /* storage unavailable */ }
+    try { localStorage.setItem(userScopedStorageKey(PLAYER_POSITION_STORAGE_KEY), JSON.stringify({ left, top })); } catch (error) { /* storage unavailable */ }
 }
 
 function installPlaybackPanelDrag(panel) {

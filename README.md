@@ -54,7 +54,7 @@ El servidor puede ejecutarse en un ordenador y la aplicación puede abrirse desd
 
 ~~~mermaid
 flowchart LR
-    Browser[ navegador o teléfono ] --> ListenBook[ ListenBook<br/>:8080 ]
+    Browser[ navegador o teléfono ] --> ListenBook[ ListenBook<br/>:8080<br/>SQLite + sesiones ]
     ListenBook --> ComfyUI[ ComfyUI<br/>:8188 ]
     ComfyUI --> OmniVoice[ OmniVoice ]
     ListenBook -. opcional .-> Calibre[ Calibre / OPDS ]
@@ -63,8 +63,11 @@ flowchart LR
 ListenBook sirve la interfaz web y funciona como proxy para las peticiones de ComfyUI:
 
 - **ListenBook**: servidor Python incluido en este proyecto, normalmente en el puerto <code>8080</code>.
+- **SQLite**: almacena usuarios, sesiones y la URL OPDS privada de cada cuenta.
 - **ComfyUI**: motor de procesamiento, normalmente en el puerto <code>8188</code>.
 - **OmniVoice**: nodo y modelo de ComfyUI que generan la voz.
+
+El proxy también reenvía el WebSocket de progreso de ComfyUI. Así, la barra de ListenBook usa el porcentaje y el tiempo restante del trabajo actual; no reutiliza duraciones guardadas de capítulos anteriores.
 - **Calibre OPDS**: fuente opcional para importar EPUB desde una biblioteca remota.
 
 El navegador solo necesita conectarse a ListenBook. ComfyUI puede quedarse escuchando en <code>127.0.0.1</code>, porque ListenBook reenvía las peticiones desde el servidor.
@@ -136,7 +139,7 @@ python -m venv .venv
 ListenBook las crea automáticamente al arrancar, pero también se pueden crear de forma explícita:
 
 ~~~bash
-mkdir -p server_data/books default_audios/esp_default default_audios/esp_clonadas
+mkdir -p server_data default_audios/esp_default default_audios/esp_clonadas
 ~~~
 
 Añade al menos una muestra de referencia de voz en <code>default_audios/</code>. Por ejemplo:
@@ -243,8 +246,10 @@ El servidor acepta estas variables de entorno:
 | <code>LISTENBOOK_PORT</code> | <code>8080</code> | Puerto de la aplicación web. |
 | <code>LISTENBOOK_COMFYUI_API</code> | <code>http://127.0.0.1:8188</code> | Dirección de la API de ComfyUI. |
 | <code>LISTENBOOK_COMFYUI_VIEW</code> | <code>http://127.0.0.1:8188/view</code> | Dirección para consultar los audios de ComfyUI. |
-| <code>LISTENBOOK_DATA_DIR</code> | <code>server_data/</code> dentro del proyecto | Carpeta de libros, biblioteca y estado de audios. |
-| <code>LISTENBOOK_BIBLIOSES_OPDS</code> | valor configurado en el servidor | URL del catálogo OPDS de Biblioses. Se recomienda establecerla explícitamente. |
+| <code>LISTENBOOK_DATA_DIR</code> | <code>server_data/</code> dentro del proyecto | Carpeta privada de SQLite y datos separados por usuario. |
+| <code>LISTENBOOK_BIBLIOSES_OPDS</code> | vacío | URL OPDS inicial opcional para cuentas nuevas. También se puede establecer desde la interfaz. |
+| <code>LISTENBOOK_ALLOW_REGISTRATION</code> | vacío | Permite registrar cuentas adicionales mediante API. Vacío para cerrar el registro público. |
+| <code>LISTENBOOK_COOKIE_SECURE</code> | vacío | Añade <code>Secure</code> a la cookie cuando ListenBook se sirve detrás de HTTPS. |
 
 Ejemplo para una instalación local:
 
@@ -255,13 +260,35 @@ export LISTENBOOK_COMFYUI_API=http://127.0.0.1:8188
 export LISTENBOOK_COMFYUI_VIEW=http://127.0.0.1:8188/view
 ~~~
 
-Ejemplo para cambiar la biblioteca OPDS:
+Ejemplo para dar una URL OPDS inicial a las cuentas nuevas:
 
 ~~~bash
 export LISTENBOOK_BIBLIOSES_OPDS=http://servidor-calibre:8080/opds
 ~~~
 
 Estas variables solo duran durante la sesión de terminal. Para conservarlas, añádelas al archivo de configuración de tu shell o crea un script de arranque.
+
+## Usuarios y configuración privada
+
+En el primer arranque aparece una pantalla para crear la cuenta inicial. Después el registro queda cerrado por defecto. Cada cuenta tiene:
+
+- una sesión con cookie <code>HttpOnly</code> y caducidad renovable;
+- su propia biblioteca de EPUB;
+- su índice de capítulos y audios generados;
+- sus voces clonadas;
+- su propia URL OPDS de Biblioses.
+
+Si ya existían <code>server_data/library.json</code>, <code>server_data/generated-audio.json</code> o EPUB en <code>server_data/books/</code>, se copian automáticamente a la primera cuenta al iniciar sesión por primera vez.
+
+La URL de Calibre-Web se configura desde **Configuración → Configuración del servidor**. Se guarda en <code>server_data/listenbook.sqlite3</code>, dentro de una carpeta ignorada por Git. No escribas una URL personal en <code>index.html</code>, JavaScript ni en el repositorio.
+
+Para permitir altas posteriores durante una instalación privada:
+
+~~~bash
+export LISTENBOOK_ALLOW_REGISTRATION=1
+~~~
+
+Actívalo solo durante el tiempo necesario para crear las cuentas y vuelve a dejarlo vacío. En un despliegue público conviene poner ListenBook detrás de HTTPS y usar <code>LISTENBOOK_COOKIE_SECURE=1</code>.
 
 ## Ejecución
 
@@ -322,18 +349,17 @@ default_audios/
 │   └── narrador_esp.wav
 ├── en_default/
 │   └── narrator_en.wav
-└── esp_clonadas/
-    └── voz_pastor_de_Granja.wav
+└── ...
 ~~~
 
 El nombre mostrado en la interfaz se genera a partir de la carpeta y del nombre del archivo.
 
 ### Clonar una voz
 
-El botón **Clonar voz** permite subir una muestra y elegir un nombre. Las voces nuevas se guardan en:
+El botón **Clonar voz** permite subir una muestra y elegir un nombre. Las voces nuevas se guardan en el directorio privado de la cuenta:
 
 ~~~text
-default_audios/esp_clonadas/
+server_data/users/<id>/default_audios/esp_clonadas/
 ~~~
 
 Por ejemplo:
@@ -382,14 +408,14 @@ La biblioteca debe ofrecer un catálogo OPDS accesible desde el ordenador donde 
 http://servidor-calibre:8080/opds
 ~~~
 
-Configúrala antes de arrancar el servidor:
+Configúrala desde **Configuración → Configuración del servidor** después de iniciar sesión. También puedes definir una URL inicial para las cuentas nuevas:
 
 ~~~bash
 export LISTENBOOK_BIBLIOSES_OPDS=http://servidor-calibre:8080/opds
 python3 listenbook_server.py
 ~~~
 
-ListenBook utiliza las rutas OPDS de búsqueda y de descarga. El backend solo permite descargar URLs del mismo servidor OPDS configurado.
+ListenBook utiliza las rutas OPDS de búsqueda y de descarga. El backend solo permite descargar URLs del mismo servidor OPDS configurado para esa cuenta.
 
 Para comprobar el catálogo:
 
@@ -397,7 +423,7 @@ Para comprobar el catálogo:
 curl -I http://servidor-calibre:8080/opds
 ~~~
 
-Si el catálogo requiere autenticación, configura un proxy OPDS sin autenticación dentro de la red privada o adapta el backend para enviar las credenciales. No guardes credenciales en el frontend.
+Si el catálogo requiere autenticación, esta primera versión espera un endpoint OPDS accesible desde ListenBook sin credenciales. No guardes credenciales en el frontend.
 
 ## Acceso desde otros dispositivos
 
@@ -455,15 +481,20 @@ La información persistente de ListenBook se guarda en <code>server_data/</code>
 
 ~~~text
 server_data/
-├── library.json          # libros importados y orden de la estantería
-├── generated-audio.json  # capítulos generados y sus archivos
-└── books/                # copias de los EPUB importados
+├── listenbook.sqlite3    # usuarios, sesiones y configuración OPDS
+├── users/
+│   └── <id>/
+│       ├── library.json          # biblioteca y orden de la estantería
+│       ├── generated-audio.json  # capítulos generados de esa cuenta
+│       ├── books/                # EPUB de esa cuenta
+│       └── default_audios/       # voces clonadas de esa cuenta
+└── books/                # datos antiguos; solo se usa para migración
 ~~~
 
 Las voces de referencia se guardan en:
 
 ~~~text
-default_audios/
+default_audios/                     # muestras de ejemplo compartidas
 ~~~
 
 Los audios generados se guardan en la carpeta de salida de ComfyUI, normalmente:
@@ -531,16 +562,16 @@ young adult, moderate pitch
 
 ### No aparecen libros en Biblioses
 
-Comprueba la URL OPDS y prueba desde el servidor:
+Comprueba la URL OPDS configurada en **Configuración → Configuración del servidor**. Después de iniciar sesión, prueba desde el servidor:
 
 ~~~bash
-curl -I "$LISTENBOOK_BIBLIOSES_OPDS"
+curl -I http://servidor-calibre:8080/opds
 ~~~
 
 También puedes consultar la API local:
 
 ~~~bash
-curl 'http://127.0.0.1:8080/api/biblioses/search?q='
+curl http://127.0.0.1:8080/api/auth/status
 ~~~
 
 ### Las voces no aparecen
@@ -568,13 +599,14 @@ No accedas a <code>127.0.0.1</code> desde el teléfono: esa dirección apunta al
 ~~~text
 ListenBook/
 ├── index.html                         # interfaz principal
-├── listenbook_server.py               # servidor web y API local
+├── listenbook_server.py               # servidor web, API y autenticación
 ├── manifest.webmanifest               # instalación como PWA
 ├── css/
 │   ├── listenbook.css                 # estilos principales
 │   └── style.css                      # estilos auxiliares
 ├── scripts/
 │   ├── main.js                         # estado y flujo principal
+│   ├── auth.js                         # login, sesiones y configuración privada
 │   ├── dom.js                          # referencias y utilidades DOM
 │   ├── ebook.js                         # lectura y análisis de EPUB
 │   ├── shelf.js                         # estantería y arrastrar/soltar
@@ -606,11 +638,22 @@ cd /ruta/al/proyecto/ListenBook
 python3 listenbook_server.py
 ~~~
 
-### Terminal 3: comprobación
+### Terminal 3: acceso desde otro dispositivo
+
+En la misma red, abre en el navegador del otro dispositivo:
+
+~~~text
+http://IP_DEL_SERVIDOR:8080
+~~~
+
+Con Tailscale, usa la IP <code>100.x.x.x</code> del ordenador servidor.
+
+### Comprobación
 
 ~~~bash
 curl http://127.0.0.1:8188/system_stats
 curl -I http://127.0.0.1:8080
+curl http://127.0.0.1:8080/api/auth/status
 ~~~
 
 Después abre <code>http://127.0.0.1:8080</code> en el servidor o <code>http://IP_DEL_SERVIDOR:8080</code> desde otro dispositivo.

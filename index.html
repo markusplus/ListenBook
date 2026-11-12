@@ -8,6 +8,16 @@
     <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,400;1,600&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+    <script>
+      (() => {
+        try {
+          const theme = localStorage.getItem('listenbook.theme');
+          if (theme === 'dark') document.documentElement.classList.add('dark-theme');
+        } catch (error) {
+          // La interfaz puede continuar en modo claro si el almacenamiento no está disponible.
+        }
+      })();
+    </script>
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries">
     </script>
     <script id="tailwind-config">
@@ -117,20 +127,20 @@
           }
       
     </script>
-    <link rel="stylesheet" href="css/listenbook.css?v=18">
+    <link rel="stylesheet" href="css/listenbook.css?v=20">
     <link rel="icon" type="image/svg+xml" href="resources/listenbook-icon.svg">
     <link rel="icon" type="image/png" sizes="192x192" href="resources/listenbook-icon-192.png?v=2">
     <link rel="apple-touch-icon" sizes="180x180" href="resources/listenbook-icon-180.png?v=2">
     <link rel="manifest" href="manifest.webmanifest?v=2">
-    <meta name="theme-color" content="#8E4E00">
+    <meta id="listenbook-theme-color" name="theme-color" content="#FDFBF7">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <title>
-      ListenBook · Atelier de Audio Narrativo
+      ListenBook
     </title>
   </head>
   <body>
-    <!-- Cabecera Luminosa e Idéntica a la Pantalla Clara -->
+    <!-- Cabecera principal -->
     <header class="fixed top-0 w-full z-50 bg-[#FDFBF7]/90 backdrop-blur-xl border-b border-[#E8E2D8] shadow-sm">
       <div class="h-20 max-w-7xl mx-auto px-6 lg:px-12 flex items-center justify-between gap-6 relative">
         <div class="flex items-center gap-4 shrink-0">
@@ -138,16 +148,20 @@
             <span class="material-symbols-outlined text-[22px]">menu_book</span>
           </div>
           <div class="flex flex-col">
-            <span class="font-headline-sm text-headline-sm text-[#2C1810] leading-none tracking-tight">ListenBook</span><span class="font-label-sm text-label-sm text-[#82746F] italic font-serif mt-1">Atelier de Audio Narrativo</span>
+            <span class="font-headline-sm text-headline-sm text-[#2C1810] leading-none tracking-tight">ListenBook</span>
           </div>
         </div>
         <nav class="hidden md:flex items-center gap-1 bg-[#F4F0EA] p-1.5 rounded-xl border border-[#E4DDD3] listenbook-main-nav" data-active-classes="bg-white text-[#2C1810] font-bold rounded-lg shadow-sm">
           <a class="px-4 py-2 text-[#504440] hover:text-[#2C1810] transition-colors font-label-md text-label-md" data-path="convertir-epub" href="#">Convertir EPUB</a><a class="px-4 py-2 bg-white text-[#2C1810] font-semibold rounded-lg shadow-xs transition-colors font-label-md text-label-md" id="logo_descargas" data-path="mis-audiolibros" href="#">Mis Audiolibros</a><a class="px-4 py-2 text-[#504440] hover:text-[#2C1810] transition-colors font-label-md text-label-md" data-path="voces-y-modelos" href="#">Voces y Modelos</a><a class="px-4 py-2 text-[#504440] hover:text-[#2C1810] transition-colors font-label-md text-label-md" data-path="configuracion" href="#">Configuración</a>
         </nav>
-        <div class="flex items-center shrink-0">
-          <div class="w-8 h-8 rounded-full bg-gradient-to-br from-[#8E4E00] to-[#5F3F32] text-white flex items-center justify-center shadow-xs" aria-label="Perfil">
+        <div class="flex items-center gap-2 shrink-0">
+          <span aria-label="Cambio de tema en pruebas" class="listenbook-theme-beta" title="Cambio de tema en pruebas">Beta</span>
+          <button aria-label="Activar modo oscuro" class="listenbook-theme-toggle" id="listenbook-theme-toggle" title="Activar modo oscuro" type="button">
+            <span class="material-symbols-outlined" id="listenbook-theme-icon">dark_mode</span>
+          </button>
+          <button class="w-8 h-8 rounded-full bg-gradient-to-br from-[#8E4E00] to-[#5F3F32] text-white flex items-center justify-center shadow-xs" aria-label="Abrir cuenta" id="listenbook-account-btn" title="Cuenta" type="button">
             <span class="material-symbols-outlined text-[18px]">person</span>
-          </div>
+          </button>
         </div>
       </div>
     </header>
@@ -1089,6 +1103,47 @@
         </div>
       </div>
     </div>
+    <div aria-hidden="true" class="listenbook-auth-gate" id="listenbook-auth-gate">
+      <div aria-labelledby="listenbook-auth-title" aria-modal="true" class="listenbook-auth-dialog" id="listenbook-auth-dialog" role="dialog">
+        <div class="listenbook-auth-brand"><span class="material-symbols-outlined">menu_book</span></div>
+        <p class="listenbook-auth-eyebrow">ListenBook</p>
+        <h1 id="listenbook-auth-title">Inicia sesión</h1>
+        <p class="listenbook-auth-subtitle" id="listenbook-auth-subtitle">Accede a tu biblioteca y a tus ajustes privados.</p>
+        <form id="listenbook-auth-form">
+          <label class="listenbook-auth-field">Usuario<input autocomplete="username" id="listenbook-auth-username" required type="text"></label>
+          <label class="listenbook-auth-field">Contraseña<input autocomplete="current-password" id="listenbook-auth-password" minlength="8" required type="password"></label>
+          <label class="listenbook-auth-field hidden" id="listenbook-auth-confirm-field">Repite la contraseña<input autocomplete="new-password" id="listenbook-auth-confirm" minlength="8" type="password"></label>
+          <p class="listenbook-auth-error" id="listenbook-auth-error" role="alert"></p>
+          <button class="listenbook-auth-submit" id="listenbook-auth-submit" type="submit">Entrar</button>
+        </form>
+        <p class="listenbook-auth-help" id="listenbook-auth-help"></p>
+      </div>
+    </div>
+    <div aria-hidden="true" class="listenbook-modal-shell" id="listenbook-account-modal">
+      <div aria-labelledby="listenbook-account-title" aria-modal="true" class="listenbook-account-dialog" role="dialog">
+        <button aria-label="Cerrar" class="listenbook-modal-close" data-listenbook-close-account type="button"><span class="material-symbols-outlined">close</span></button>
+        <p class="listenbook-auth-eyebrow">Cuenta ListenBook</p>
+        <h2 id="listenbook-account-title">Tu sesión</h2>
+        <p class="listenbook-account-user" id="listenbook-account-user"></p>
+        <div class="listenbook-account-actions">
+          <button class="listenbook-settings-button" id="listenbook-open-settings" type="button"><span class="material-symbols-outlined">settings</span>Configuración del servidor</button>
+          <button class="listenbook-logout-button" id="listenbook-logout" type="button"><span class="material-symbols-outlined">logout</span>Cerrar sesión</button>
+        </div>
+      </div>
+    </div>
+    <div aria-hidden="true" class="listenbook-modal-shell" id="listenbook-settings-modal">
+      <div aria-labelledby="listenbook-settings-title" aria-modal="true" class="listenbook-account-dialog listenbook-settings-dialog" role="dialog">
+        <button aria-label="Cerrar" class="listenbook-modal-close" data-listenbook-close-settings type="button"><span class="material-symbols-outlined">close</span></button>
+        <p class="listenbook-auth-eyebrow">Configuración privada</p>
+        <h2 id="listenbook-settings-title">Conexiones del servidor</h2>
+        <p class="listenbook-account-user">Cada cuenta puede usar un catálogo Biblioses diferente. La URL se guarda en la base de datos local del servidor.</p>
+        <form id="listenbook-settings-form">
+          <label class="listenbook-auth-field">URL OPDS de Calibre-Web<input id="listenbook-biblioses-url" placeholder="http://servidor:8080/opds" type="url"></label>
+          <p class="listenbook-auth-error" id="listenbook-settings-error" role="alert"></p>
+          <div class="listenbook-settings-actions"><button class="listenbook-settings-cancel" data-listenbook-close-settings type="button">Cancelar</button><button class="listenbook-auth-submit" type="submit">Guardar conexión</button></div>
+        </form>
+      </div>
+    </div>
     <footer class="w-full bg-[#FAF7F2] border-t border-[#E8E2D8] py-10">
       <div class="max-w-7xl mx-auto px-6 lg:px-12 flex flex-col md:flex-row items-center justify-between gap-6">
         <div class="flex items-center gap-3">
@@ -1108,7 +1163,11 @@
     </script>
     <script type="module" src="scripts/shelf.js?v=3">
     </script>
-    <script type="module" src="scripts/main.js?v=68">
+    <script type="module" src="scripts/theme.js?v=1">
+    </script>
+    <script src="scripts/auth.js?v=1">
+    </script>
+    <script type="module" src="scripts/main.js?v=71">
     </script>
   </body>
 </html>

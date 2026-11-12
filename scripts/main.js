@@ -1,8 +1,8 @@
 import { archivoSubido, setTitle, setAuthor, setBookCollection, showCover, addDownloadLink, clearDownloads } from './dom.js?v=6';
-import { showProcessing, closeProcessing, showChapterSelectionModal, renderPrototypeChapterSelection, clearPrototypeChapterDemo, markChapterGenerated, restoreGeneratedAudioForBook, toast } from './ui.js?v=22';
+import { showProcessing, closeProcessing, showChapterSelectionModal, renderPrototypeChapterSelection, clearPrototypeChapterDemo, markChapterGenerated, restoreGeneratedAudioForBook, toast } from './ui.js?v=23';
 import { createProgressWidget, updateProgressWidget, removeProgressWidget } from './dom.js?v=6';
 import { Ebook, extraerCapitulos } from './ebook.js?v=3';
-import { ejecutarTTS } from './ttsProcess.js?v=17';
+import { ejecutarTTS } from './ttsProcess.js?v=20';
 
 // El listado inicial del Stitch es solo una maqueta. La aplicación debe
 // mostrar exclusivamente los capítulos del EPUB cargado por el usuario.
@@ -77,6 +77,7 @@ if (appMenu) {
             const path = link.dataset.path;
             if (path === 'mis-audiolibros') showShelfView();
             if (path === 'convertir-epub') showConvertView();
+            if (path === 'configuracion') window.openListenBookSettings?.();
         });
     });
 }
@@ -586,11 +587,26 @@ bibliosesSearchInput?.addEventListener('keydown', event => {
 const BOOKS_STORAGE_KEY = 'listenbook.library.books.v1';
 const BOOK_DB_NAME = 'listenbook-library';
 const BOOK_FILE_STORE = 'files';
-let bookDbPromise = null;
+const bookDbPromises = new Map();
+
+function userStorageScope() {
+    return String(window.listenbookAuth?.user?.id || 'anonymous');
+}
+
+function scopedBooksStorageKey() {
+    return `${BOOKS_STORAGE_KEY}.${userStorageScope()}`;
+}
 
 function readStoredBooks() {
     try {
-        const value = JSON.parse(localStorage.getItem(BOOKS_STORAGE_KEY) || '[]');
+        const scopedKey = scopedBooksStorageKey();
+        // Migrate the former single-user browser cache only to the first
+        // account. Other accounts must never inherit another user's shelf.
+        if (userStorageScope() === '1' && !localStorage.getItem(scopedKey)) {
+            const legacy = localStorage.getItem(BOOKS_STORAGE_KEY);
+            if (legacy) localStorage.setItem(scopedKey, legacy);
+        }
+        const value = JSON.parse(localStorage.getItem(scopedKey) || '[]');
         return Array.isArray(value) ? value : [];
     } catch (error) {
         console.warn('[Biblioteca] No se pudieron leer los libros:', error);
@@ -607,7 +623,7 @@ function updateLibraryVolumeCount(books = readStoredBooks()) {
 }
 
 function writeStoredBooks(books) {
-    try { localStorage.setItem(BOOKS_STORAGE_KEY, JSON.stringify(books)); }
+    try { localStorage.setItem(scopedBooksStorageKey(), JSON.stringify(books)); }
     catch (error) { console.warn('[Biblioteca] No se pudieron guardar los libros:', error); }
     updateLibraryVolumeCount(books);
 }
@@ -678,17 +694,19 @@ function createBookId() {
 }
 
 function openBookDatabase() {
-    if (bookDbPromise) return bookDbPromise;
+    const databaseName = `${BOOK_DB_NAME}-${userStorageScope()}`;
+    if (bookDbPromises.has(databaseName)) return bookDbPromises.get(databaseName);
     if (!window.indexedDB) return Promise.resolve(null);
-    bookDbPromise = new Promise((resolve, reject) => {
-        const request = indexedDB.open(BOOK_DB_NAME, 1);
+    const databasePromise = new Promise((resolve, reject) => {
+        const request = indexedDB.open(databaseName, 1);
         request.onupgradeneeded = () => {
             if (!request.result.objectStoreNames.contains(BOOK_FILE_STORE)) request.result.createObjectStore(BOOK_FILE_STORE);
         };
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);
     }).catch(error => { console.warn('[Biblioteca] IndexedDB no disponible:', error); return null; });
-    return bookDbPromise;
+    bookDbPromises.set(databaseName, databasePromise);
+    return databasePromise;
 }
 
 async function storeBookFile(id, file) {
@@ -1154,7 +1172,9 @@ if (shelfStage) {
         }
     }, true);
 }
-restoreStoredBooksOnShelf().catch(error => console.warn('[Biblioteca] No se pudo sincronizar la estantería:', error));
+Promise.resolve(window.listenbookAuthReady || true)
+    .then(() => restoreStoredBooksOnShelf())
+    .catch(error => console.warn('[Biblioteca] No se pudo sincronizar la estantería:', error));
 
 if (reuploadButton && fileInput) {
     reuploadButton.addEventListener('click', () => fileInput.click());
@@ -1508,9 +1528,11 @@ if (fileInput) {
                     img.onmouseover = () => img.style.opacity = '0.5';
                     img.onmouseout = () => img.style.opacity = '1';
                     // restore simple click handler on the cover image
+                let activeSynthesisRunToken = 0;
                 const runSynthesisForChapters = async (seleccionados) => {
                     const allCaps = (window.__listenbookChapterData || { all: [] }).all || [];
                     const audioSettings = readAudioSettings();
+                    const synthesisRunToken = ++activeSynthesisRunToken;
                     try {
                         const referenceDataUrl = null;
                         const selectedVoicePath = audioSettings.voice || '/default_audios/esp_default/narrador_esp.wav';
@@ -1521,9 +1543,14 @@ if (fileInput) {
                             // clear previous downloads for a fresh run
                             try { clearDownloads(); } catch (e) {}
 
-                            // Process each chapter separately (one predict per chapter)
+                            // Process each chapter separately (one predict per chapter).
+                            // The token prevents delayed progress events from a
+                            // finished prompt changing the next chapter's widget.
+                            let activeProgressToken = 0;
                             for (let ci = 0; ci < (seleccionados || []).length; ci++) {
                                 const chap = seleccionados[ci];
+                                const progressToken = ++activeProgressToken;
+                                let currentPromptId = null;
                                 try {
                                     // Setup per-chapter progress widget
                                     try {
@@ -1541,6 +1568,11 @@ if (fileInput) {
                                         pollInterval: 1500,
                                         timeout: 1000 * 60 * 10,
                                         onProgress: (status) => {
+                                            if (synthesisRunToken !== activeSynthesisRunToken || progressToken !== activeProgressToken) return;
+                                            if (status.promptId) {
+                                                if (!currentPromptId) currentPromptId = status.promptId;
+                                                if (currentPromptId !== status.promptId) return;
+                                            }
                                             try{
                                                 if (typeof status.percent === 'number') {
                                                     const eta = Number.isFinite(status.etaSeconds)
@@ -1559,8 +1591,10 @@ if (fileInput) {
 
                                     // clear per-chapter progress
                                     try {
-                                        if (window.__tts_progress_interval) { clearInterval(window.__tts_progress_interval); window.__tts_progress_interval = null; }
-                                        removeProgressWidget();
+                                        if (progressToken === activeProgressToken) {
+                                            if (window.__tts_progress_interval) { clearInterval(window.__tts_progress_interval); window.__tts_progress_interval = null; }
+                                            removeProgressWidget();
+                                        }
                                     } catch (e) {}
 
                                     // Process result for this chapter (same logic as before, but use chap as source for naming)
@@ -1660,7 +1694,9 @@ if (fileInput) {
                                     // Refresh downloads listing after each chapter
                                     try { await fetchAndShowOutputsDir(); } catch (e) { console.warn('fetchAndShowOutputsDir failed', e); }
                                 } catch (errChapter) {
-                                    try { if (window.__tts_progress_interval) { clearInterval(window.__tts_progress_interval); window.__tts_progress_interval = null; } removeProgressWidget(); } catch(e){}
+                                    if (progressToken === activeProgressToken) {
+                                        try { if (window.__tts_progress_interval) { clearInterval(window.__tts_progress_interval); window.__tts_progress_interval = null; } removeProgressWidget(); } catch(e){}
+                                    }
                                     try {
                                         console.error('Error ejecutando TTS para capítulo', ci, errChapter);
                                         console.error('Error ejecutando TTS (JSON):', JSON.stringify(errChapter, Object.getOwnPropertyNames(errChapter), 2));

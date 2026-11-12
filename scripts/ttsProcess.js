@@ -275,39 +275,11 @@ function outputUrl(base, audio) {
     return `${base}/view?${params.toString()}`;
 }
 
-const DURATION_STORAGE_KEY = 'listenbook.omnivoice.duration.samples';
-
-function getDurationEstimate() {
-    try {
-        const values = JSON.parse(localStorage.getItem(DURATION_STORAGE_KEY) || '[]')
-            .map(Number)
-            .filter(value => Number.isFinite(value) && value > 0);
-        if (values.length) {
-            const recent = values.slice(-5);
-            return recent.reduce((total, value) => total + value, 0) / recent.length;
-        }
-    } catch (e) {}
-    return 60;
-}
-
-function recordDuration(seconds) {
-    if (!Number.isFinite(seconds) || seconds <= 0) return;
-    try {
-        const values = JSON.parse(localStorage.getItem(DURATION_STORAGE_KEY) || '[]')
-            .map(Number)
-            .filter(value => Number.isFinite(value) && value > 0);
-        values.push(seconds);
-        localStorage.setItem(DURATION_STORAGE_KEY, JSON.stringify(values.slice(-10)));
-    } catch (e) {}
-}
-
 function openProgressSocket(base, clientId, promptId, onProgress) {
     if (typeof WebSocket === 'undefined') return null;
-    // ListenBook proxies the ComfyUI HTTP API, but not WebSockets. Remote
-    // clients use the /history polling fallback instead.
-    if (/\/api\/comfy\/?$/.test(base)) return null;
     const wsBase = base.replace(/^http/i, 'ws');
     const socket = new WebSocket(`${wsBase}/ws?clientId=${encodeURIComponent(clientId)}`);
+    socket._listenbookPromptId = promptId;
     const samples = [];
     let firstProgressAt = null;
 
@@ -315,7 +287,7 @@ function openProgressSocket(base, clientId, promptId, onProgress) {
         if (typeof event.data !== 'string') return;
         let message;
         try { message = JSON.parse(event.data); } catch (e) { return; }
-        if (message.type !== 'progress_state' || !message.data || message.data.prompt_id !== promptId) return;
+        if (message.type !== 'progress_state' || !message.data || message.data.prompt_id !== socket._listenbookPromptId) return;
 
         const nodes = message.data.nodes || {};
         const progress = nodes['4'] || Object.values(nodes).find(node => node && node.max > 0);
@@ -339,7 +311,7 @@ function openProgressSocket(base, clientId, promptId, onProgress) {
         const percent = Math.min(100, Math.max(0, (value / max) * 100));
         socket._listenbookHasProgress = true;
         socket._listenbookEtaSeconds = etaSeconds;
-        try { onProgress({ status: 'running', percent, value, max, etaSeconds }); } catch (e) {}
+        try { onProgress({ promptId: socket._listenbookPromptId, status: 'running', percent, value, max, etaSeconds }); } catch (e) {}
     };
     socket.onerror = () => {};
     return socket;
@@ -359,8 +331,7 @@ async function waitForHistory(base, promptId, progressSocket, options) {
     const pollInterval = options && typeof options.pollInterval === 'number' ? options.pollInterval : 1000;
     const onProgress = options && typeof options.onProgress === 'function' ? options.onProgress : () => {};
     const started = Date.now();
-    const estimatedTotalSeconds = getDurationEstimate();
-    try { onProgress({ promptId, status: 'running', percent: 0, etaSeconds: estimatedTotalSeconds }); } catch (e) {}
+    try { onProgress({ promptId, status: 'running', percent: 0, etaSeconds: null }); } catch (e) {}
     try {
         while (Date.now() - started < timeout) {
             const response = await fetch(`${base}/history/${encodeURIComponent(promptId)}`);
@@ -385,26 +356,29 @@ async function waitForHistory(base, promptId, progressSocket, options) {
                     }
                 }
                 if (files.length) {
-                    recordDuration((Date.now() - started) / 1000);
                     return { files, prompt_id: promptId, history: job };
                 }
             }
             if (!progressSocket || !progressSocket._listenbookHasProgress) {
-                const elapsed = (Date.now() - started) / 1000;
-                const percent = Math.min(99, (elapsed / estimatedTotalSeconds) * 100);
-                const etaSeconds = Math.max(0, estimatedTotalSeconds - elapsed);
-                try { onProgress({ promptId, status: 'running', percent, etaSeconds }); } catch (e) {}
+                // Without the ComfyUI WebSocket there is no reliable total
+                // duration. Do not invent an ETA from a previous chapter.
+                try { onProgress({ promptId, status: 'running', percent: 0, etaSeconds: null }); } catch (e) {}
             } else {
                 const etaSeconds = progressSocket && Number.isFinite(progressSocket._listenbookEtaSeconds)
-                    ? progressSocket._listenbookEtaSeconds
-                    : estimatedTotalSeconds;
+                    ? progressSocket._listenbookEtaSeconds : null;
                 try { onProgress({ promptId, status: 'running', etaSeconds }); } catch (e) {}
             }
             await new Promise(resolve => setTimeout(resolve, pollInterval));
         }
         throw new Error('La generación de audio ha superado el tiempo máximo de espera.');
     } finally {
-        if (progressSocket) progressSocket.close();
+        if (progressSocket) {
+            // Prevent delayed WebSocket messages from updating the widget of
+            // the next chapter after this prompt has already finished.
+            progressSocket.onmessage = null;
+            progressSocket.onerror = null;
+            progressSocket.close();
+        }
     }
 }
 
@@ -445,5 +419,8 @@ export async function ejecutarTTS(ebook, chapters, options) {
         console.error('[ListenBook -> ComfyUI] Respuesta de /prompt:', response.status, body);
         throw new Error(`ComfyUI rechazó la petición (${response.status}): ${JSON.stringify(body)}`);
     }
+    // ComfyUI may return the canonical prompt id in the response. Bind the
+    // socket to that id before accepting any progress event.
+    if (progressSocket) progressSocket._listenbookPromptId = body.prompt_id;
     return waitForHistory(base, body.prompt_id, progressSocket, options);
 }
